@@ -51,10 +51,12 @@ nothing to withhold.
    IDENTITY (Test 1)                                              -> 4
 2. A VERDICT or DISMISSAL (Test 2) with nothing to act on (Test 3) -> 4
 3. A VERDICT (Test 2) about the subject, with something to act on  -> 2
-4. Off-topic for the campaign prompt, or pure description that states no
+4. Instruction-like, spam-like, or irrelevant text with no meaningful feedback
+   and no harmful attack                                           -> 3
+5. Off-topic for the campaign prompt, or pure description that states no
    strength and no weakness                                       -> 3
-5. Not praise, and nothing to act on (Test 3)                     -> 3
-6. Otherwise                                                      -> 1
+6. Not praise, and nothing to act on (Test 3)                     -> 3
+7. Otherwise                                                      -> 1
 
 # Category meanings
 
