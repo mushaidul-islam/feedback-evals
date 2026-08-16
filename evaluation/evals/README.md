@@ -1,6 +1,7 @@
 # Feedback eval
 
-This eval sends rows sequentially to BaseTen's model API:
+This eval sends rows sequentially to a pinned provider model API. BaseTen remains
+the default; RunInfra is an explicit comparison provider.
 
 - Model: `deepseek-ai/DeepSeek-V4-Flash-0731`
 - Endpoint: `https://inference.baseten.co/v1/chat/completions`
@@ -26,6 +27,12 @@ before treating this choice as permanent.
 export BASETEN_API_KEY="..."
 python3 evals/run_openrouter_models.py --dry-run
 python3 evals/run_openrouter_models.py
+
+# Separate RunInfra comparison. Its `deepseek-v4-flash` alias is not represented
+# as the same immutable BaseTen model release, so do not combine its results.
+export RUNINFRA_GATEWAY_KEY="..."
+python3 evals/run_openrouter_models.py --provider runinfra --dry-run
+python3 evals/run_openrouter_models.py --provider runinfra
 ```
 
 Use `--limit 10` for the first 10 CSV rows, or repeat `--row-id ID` to run exact
@@ -65,6 +72,10 @@ The schema uses `minLength: 1`, so `""` is not an allowed category-2 rewrite.
 The runner also enforces the category/rewrite relationship without repairing a
 bad response.
 
+Every JSON response is retained in `responses.jsonl`, even when local validation
+marks it invalid. Scoring reports JSON and validity rates, then calculates
+accuracy and macro F1 from locally valid responses only.
+
 BaseTen caching is automatic. The shared prompt is small enough that caching may
 not help, but `cached_tokens` and `cache_write_tokens` are logged when returned.
 
@@ -72,6 +83,7 @@ not help, but `cached_tokens` and `cache_write_tokens` are logged when returned.
 
 ```sh
 python3 evals/test_openrouter_sanity.py
+python3 evals/test_openrouter_sanity.py --provider runinfra
 ```
 
 These checks use the eval's exact schema. They cover a normal response, a

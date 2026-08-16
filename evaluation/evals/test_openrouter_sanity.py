@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run small live checks against the pinned BaseTen model."""
+"""Run small live checks against one pinned eval provider."""
 
 from __future__ import annotations
 
@@ -14,12 +14,12 @@ from typing import Any
 
 from run_openrouter_models import (
     DEFAULT_OUTPUT_DIR,
-    MODEL,
-    PROVIDER,
+    PROVIDERS,
+    ProviderConfig,
     RESPONSE_SCHEMA,
     build_request,
     http_error_text,
-    post_baseten,
+    post_request,
     response_details,
 )
 
@@ -93,14 +93,18 @@ def failed_test_record(name: str, error: Exception) -> dict[str, Any]:
     return record
 
 
-def run_case(case: dict[str, Any], api_key: str) -> dict[str, Any]:
-    response = post_baseten(
+def run_case(case: dict[str, Any], api_key: str, provider: ProviderConfig) -> dict[str, Any]:
+    response = post_request(
         build_request(
-            case["campaign_prompt"], case["feedback_text"], schema=RESPONSE_SCHEMA
+            case["campaign_prompt"], case["feedback_text"], schema=RESPONSE_SCHEMA,
+            provider=provider,
         ),
         api_key,
+        provider,
     )
-    details = response_details(response)
+    details = response_details(response, provider)
+    if not details["valid"]:
+        raise AssertionError(details["error"])
     parsed = details["parsed_output"]
     expected = case["expected_category"]
     if parsed["category"] != expected:
@@ -116,10 +120,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=None,
                         help="JSONL log path (default: evals/results/sanity_<time>.jsonl)")
+    parser.add_argument("--provider", choices=sorted(PROVIDERS), default="baseten")
     args = parser.parse_args()
-    api_key = os.environ.get("BASETEN_API_KEY")
+    provider = PROVIDERS[args.provider]
+    api_key = os.environ.get(provider.api_key_env)
     if not api_key:
-        raise RuntimeError("Set BASETEN_API_KEY before running live sanity checks.")
+        raise RuntimeError(f"Set {provider.api_key_env} before running live sanity checks.")
 
     output = args.output or DEFAULT_OUTPUT_DIR / (
         "sanity_" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + ".jsonl"
@@ -140,7 +146,7 @@ def main() -> int:
 
         for case in CASES:
             try:
-                details = run_case(case, api_key)
+                details = run_case(case, api_key, provider)
                 results[case["name"]] = details
                 record = {"test": case["name"], "passed": True, **details}
                 print(f"PASS {case['name']}")
@@ -151,7 +157,7 @@ def main() -> int:
             log_record(log, record)
 
         try:
-            repeated = run_case(CASES[0], api_key)
+            repeated = run_case(CASES[0], api_key, provider)
             original = results["normal_and_category_1"]
             same_provider = original["provider"] == repeated["provider"]
             same_output = original["raw_output"] == repeated["raw_output"]
@@ -176,10 +182,10 @@ def main() -> int:
         log_record(log, record)
 
         invalid_request = build_request(
-            "Return a value.", "Test.", schema=INVALID_SCHEMA
+            "Return a value.", "Test.", schema=INVALID_SCHEMA, provider=provider
         )
         try:
-            response = post_baseten(invalid_request, api_key)
+            response = post_request(invalid_request, api_key, provider)
             error_payload = response.get("error")
             error_code = error_payload.get("code") if isinstance(error_payload, dict) else None
             passed = error_code in {400, 422}
@@ -190,8 +196,8 @@ def main() -> int:
                 "passed": passed,
                 "error": error_payload or "API accepted the deliberately invalid schema",
                 "sent_schema": INVALID_SCHEMA,
-                "requested_model": MODEL,
-                "requested_provider": PROVIDER,
+                "requested_model": provider.model,
+                "requested_provider": provider.name,
                 "returned_model": response.get("model"),
                 "provider": response.get("provider"),
                 "generation_id": response.get("id"),
@@ -213,8 +219,8 @@ def main() -> int:
                 "http_status": error.code,
                 "error": detail,
                 "sent_schema": INVALID_SCHEMA,
-                "requested_model": MODEL,
-                "requested_provider": PROVIDER,
+                "requested_model": provider.model,
+                "requested_provider": provider.name,
             }
             if not passed:
                 failures.append("invalid_schema_rejected")
@@ -225,8 +231,8 @@ def main() -> int:
                 "passed": False,
                 "error": f"{type(error).__name__}: {error}",
                 "sent_schema": INVALID_SCHEMA,
-                "requested_model": MODEL,
-                "requested_provider": PROVIDER,
+                "requested_model": provider.model,
+                "requested_provider": provider.name,
             }
             failures.append("invalid_schema_rejected")
             print(f"FAIL invalid_schema_rejected: {error}")
@@ -234,8 +240,8 @@ def main() -> int:
 
         log_record(log, {
             "event": "summary",
-            "model": MODEL,
-            "provider": PROVIDER,
+            "model": provider.model,
+            "provider": provider.name,
             "passed": not failures,
             "failures": failures,
         })

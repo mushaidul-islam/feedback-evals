@@ -39,9 +39,9 @@ def score(records: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[tuple[int
 
     for record in records:
         expected = record["expected"]["category"]
-        actual_counts[expected] += 1
         if not record.get("valid"):
             continue
+        actual_counts[expected] += 1
         predicted = record["parsed_output"]["category"]
         valid += 1
         confusion[(expected, predicted)] += 1
@@ -57,13 +57,19 @@ def score(records: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[tuple[int
             2 * precision * recall / (precision + recall) if precision + recall else 0.0
         )
 
+    has_json_flags = all("json_valid" in record for record in records)
+    json_responses = (
+        sum(bool(record["json_valid"]) for record in records) if has_json_flags else None
+    )
     summary = {
         "event": "score",
         "requests": len(records),
+        "json_responses": json_responses,
+        "json_rate": json_responses / len(records) if json_responses is not None else None,
         "valid": valid,
         "validity_rate": valid / len(records),
         "correct": correct,
-        "accuracy": correct / len(records),
+        "accuracy": correct / valid if valid else 0.0,
         "macro_f1": sum(f1_scores) / len(CATEGORIES),
     }
     return summary, confusion
@@ -78,7 +84,8 @@ def write_confusion(path: Path, confusion: dict[tuple[int, int], int]) -> None:
 
 
 def disagreement_row(record: dict[str, Any]) -> dict[str, Any]:
-    parsed = record.get("parsed_output") or {}
+    parsed_output = record.get("parsed_output")
+    parsed = parsed_output if isinstance(parsed_output, dict) else {}
     item, expected = record["input"], record["expected"]
     return {
         "id": item["id"],
@@ -127,8 +134,11 @@ def main() -> int:
         writer.writeheader()
         writer.writerows(disagreements)
 
+    json_rate = summary["json_rate"]
+    json_text = "n/a" if json_rate is None else f"{json_rate:.1%}"
     print(
-        f"Validity {summary['validity_rate']:.1%} | Accuracy {summary['accuracy']:.1%} "
+        f"JSON {json_text} | Validity {summary['validity_rate']:.1%} "
+        f"| Accuracy {summary['accuracy']:.1%} "
         f"| Macro F1 {summary['macro_f1']:.3f}"
     )
     print("\nExpected (rows) x predicted (columns)")
