@@ -34,10 +34,14 @@ func Server() error {
 	// Add dependency probes here as they land and /readyz reports on them:
 	//   services.NewHealth(Version, services.Check{Name: "postgres", Probe: pool.Ping})
 	healthSvc := services.NewHealth(Version)
+	healthHandler := handlers.NewHealthHandler(healthSvc)
+
+	appSvc := services.NewAppService()
+	appHandler := handlers.NewAppHandler(appSvc)
 
 	srv := &http.Server{
 		Addr:    cnf.Addr(),
-		Handler: handlers.NewRouter(cnf, log, healthSvc),
+		Handler: handlers.NewRouter(cnf, log, healthHandler, appHandler),
 		// Without these a connection stays open indefinitely for a client
 		// that never finishes its request.
 		ReadTimeout:       cnf.ReadTimeout,

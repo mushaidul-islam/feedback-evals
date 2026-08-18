@@ -9,13 +9,12 @@ import (
 
 	"github.com/mushaidul/truth-be-told/backend/internal/config"
 	"github.com/mushaidul/truth-be-told/backend/internal/middleware"
-	"github.com/mushaidul/truth-be-told/backend/internal/services"
 	"github.com/mushaidul/truth-be-told/backend/pkg/utils"
 )
 
 // NewRouter builds the router. The whole route table lives in this one
 // function, so "where is this endpoint handled?" is one screen to answer.
-func NewRouter(cnf config.Config, log *slog.Logger, healthSvc *services.Health) http.Handler {
+func NewRouter(cnf config.Config, log *slog.Logger, healthHandler *HealthHandler, appHandler *AppHandler) http.Handler {
 	r := chi.NewRouter()
 
 	// Order matters: Tracing first so later log lines carry a correlation ID,
@@ -35,16 +34,15 @@ func NewRouter(cnf config.Config, log *slog.Logger, healthSvc *services.Health) 
 			"That method is not allowed for this resource.")
 	})
 
-	health := NewHealthHandler(healthSvc)
-
 	// Operational endpoints sit outside /api/v1 — they are not part of the
 	// versioned API contract.
-	r.Get("/healthz", health.Live)
-	r.Get("/readyz", health.Ready)
+	r.Get("/healthz", healthHandler.Live)
+	r.Get("/readyz", healthHandler.Ready)
 
 	r.Route("/api/v1", func(r chi.Router) {
-		// Business routes mount here. See README, "Adding a feature".
-		_ = r
+		r.Route("/feedback", func(r chi.Router) {
+			r.Post("/", appHandler.CreateFeedback)
+		})
 	})
 
 	return r
