@@ -1,0 +1,11 @@
+tmp/
+bin/
+
+# Never commit a real .env. .env.example is committed and documents the values.
+.env
+.env.*
+!.env.example
+
+.DS_Store
+.idea/
+.vscode/

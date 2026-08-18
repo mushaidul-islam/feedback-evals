@@ -1,0 +1,27 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/main ."
+  bin = "./tmp/main"
+  include_ext = ["go", "yml", "yaml", "env"]
+  exclude_dir = ["tmp", "vendor", "deploy"]
+  exclude_unchanged = true
+  # Editors emit several write events per save; without this the build kicks
+  # off two or three times per keystroke.
+  delay = 300
+  stop_on_error = true
+  send_interrupt = true
+  # Give the server its shutdown grace period before air escalates to a kill,
+  # so a reload exercises the same graceful-shutdown path production uses.
+  kill_delay = "2s"
+
+[log]
+  time = true
+
+[misc]
+  clean_on_exit = true
+
+[screen]
+  clear_on_rebuild = true
+  keep_scroll = true
