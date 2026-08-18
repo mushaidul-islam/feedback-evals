@@ -7,7 +7,7 @@ import (
 	"github.com/mushaidul/truth-be-told/backend/pkg/utils"
 )
 
-type 	CreateFeedbackRequest struct {
+type Feedback struct {
 	Name string `json:"name"`
 	Text string `json:"text"`
 }
@@ -23,7 +23,7 @@ func NewAppHandler(service *services.AppService) *AppHandler {
 }
 
 func (h *AppHandler) CreateFeedback(w http.ResponseWriter, r *http.Request) {
-	input, err := utils.Decode[CreateFeedbackRequest](r)
+	input, err := utils.Decode[Feedback](r)
 	if err != nil {
 		utils.Error(
 			w,
@@ -45,10 +45,7 @@ func (h *AppHandler) CreateFeedback(w http.ResponseWriter, r *http.Request) {
 		serviceInput,
 	)
 
-	response := struct {
-		Name string `json:"name"`
-		Text string `json:"text"`
-	}{
+	response := Feedback{
 		Name: result.Name,
 		Text: result.Text,
 	}
