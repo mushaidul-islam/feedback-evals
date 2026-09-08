@@ -518,15 +518,15 @@ The job must be idempotent by campaign ID and analysis version.
 - Themes and summary view.
 - Sharing controls.
 
-### RetroUI implementation rules
+### NeoBrutalism implementation rules
 
-- Install components only through the official RetroUI registry instructions.
-- Place installed primitives under `apps/web/src/components/retroui`.
-- Do not edit RetroUI primitive files.
-- Do not recreate a component already supplied by RetroUI.
-- Do not introduce custom colors, shadows, border radii, typography styles, or visual primitives.
-- Use RetroUI’s existing tokens and component variants.
-- Product feature components may compose RetroUI primitives but must not fork their styling.
+- Use [NeoBrutalism](https://neobrutalism.com/docs/installation) as the sole component library.
+- Before implementing UI, review the [component list](https://neobrutalism.com/docs/components) and use the configured `@neobrutalism-base` registry's `list` or `search` command to find a suitable component.
+- Install components only through the official NeoBrutalism registry instructions, placing primitives under `frontend/src/components/ui`.
+- Use NeoBrutalism's Base UI variant exclusively; do not use its Radix UI variant.
+- Do not edit installed NeoBrutalism primitive files or recreate components already supplied by the registry.
+- Do not introduce another component library or hand-built visual primitives.
+- Product feature components may compose NeoBrutalism primitives but must not fork their styling.
 - If a necessary primitive is unavailable, document the gap before introducing a substitute.
 - Build mobile-first. The anonymous form must work comfortably on a phone.
 - Preserve accessible labels, focus states, keyboard navigation, and reduced-motion behavior.

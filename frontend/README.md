@@ -2,6 +2,24 @@
 
 A Next.js App Router frontend using Bun, TypeScript, Tailwind CSS, Oxlint, and Oxfmt.
 
+## UI components
+
+This project uses [NeoBrutalism](https://neobrutalism.com/docs/installation)
+exclusively through its Base UI variant. Its registry is configured in
+`components.json`. Before adding UI, check the
+[component list](https://neobrutalism.com/docs/components) and run:
+
+```bash
+bunx --bun shadcn@latest list @neobrutalism-base
+bunx --bun shadcn@latest search @neobrutalism-base
+bunx --bun shadcn@latest add https://neobrutalism.com/r/base/<component>.json
+```
+
+Install a Base UI component from the registry rather than another library or a
+custom primitive. Do not use the Radix UI variant. If a component is
+unavailable, compose existing NeoBrutalism components and record the gap before
+proposing a new primitive.
+
 ## Development
 
 ```bash
