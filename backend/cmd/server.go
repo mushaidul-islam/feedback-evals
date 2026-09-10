@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/mushaidul/truth-be-told/backend/internal/config"
+	"github.com/mushaidul/truth-be-told/backend/internal/database"
 	"github.com/mushaidul/truth-be-told/backend/internal/handlers"
 	"github.com/mushaidul/truth-be-told/backend/internal/services"
 )
@@ -31,19 +32,31 @@ func Server() error {
 	log := newLogger(cnf)
 	slog.SetDefault(log)
 
-	// Add dependency probes here as they land and /readyz reports on them:
-	//   services.NewHealth(Version, services.Check{Name: "postgres", Probe: pool.Ping})
-	healthSvc := services.NewHealth(Version)
+	db, err := database.Connect(cnf.DatabaseURL, !cnf.IsProduction())
+	if err != nil {
+		return err
+	}
+	defer database.Close(db)
+	log.Info("database connected")
+
+	if cnf.AutoMigrate {
+		if err := database.Migrate(db); err != nil {
+			return err
+		}
+		log.Info("schema up to date")
+	}
+
+	healthSvc := services.NewHealth(Version,
+		services.Check{Name: "postgres", Probe: database.Ping(db)},
+	)
 	healthHandler := handlers.NewHealthHandler(healthSvc)
 
 	appSvc := services.NewAppService()
 	appHandler := handlers.NewAppHandler(appSvc)
 
 	srv := &http.Server{
-		Addr:    cnf.Addr(),
-		Handler: handlers.NewRouter(cnf, log, healthHandler, appHandler),
-		// Without these a connection stays open indefinitely for a client
-		// that never finishes its request.
+		Addr:              cnf.Addr(),
+		Handler:           handlers.NewRouter(cnf, log, healthHandler, appHandler),
 		ReadTimeout:       cnf.ReadTimeout,
 		ReadHeaderTimeout: cnf.ReadTimeout,
 		WriteTimeout:      cnf.WriteTimeout,
