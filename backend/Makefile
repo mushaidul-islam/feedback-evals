@@ -4,7 +4,7 @@ BIGreen=\033[1;92m
 NC=\033[0m
 
 BINARY  = tmp/main
-VERSION = $(shell git rev-parse --short HEAD 2	/dev/null || echo dev)
+VERSION = $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 LDFLAGS = -s -w -X github.com/mushaidul/truth-be-told/backend/cmd.Version=$(VERSION)
 
 # Load .env so `make run` and `make dev` see DATABASE_URL without anyone
@@ -33,7 +33,7 @@ db-down: ## Stop Postgres, keeping its data volume
 	docker compose -f deploy/docker/docker-compose.yml stop postgres
 
 dev: ## Run with live reload (requires air)
-	@if command -v air 	/dev/null 2	&1; then \
+	@if command -v air >/dev/null 2>&1; then \
 		air; \
 	else \
 		printf "air not found. Install: go install github.com/air-verse/air@latest\n"; \
@@ -56,7 +56,7 @@ vet: ## Run go vet
 	go vet ./...
 
 lint: ## Run golangci-lint if installed
-	@if command -v golangci-lint 	/dev/null 2	&1; then \
+	@if command -v golangci-lint >/dev/null 2>&1; then \
 		golangci-lint run; \
 	else \
 		printf "golangci-lint not found. See https://golangci-lint.run/welcome/install/\n"; \
