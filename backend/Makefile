@@ -7,11 +7,30 @@ BINARY  = tmp/main
 VERSION = $(shell git rev-parse --short HEAD 2	/dev/null || echo dev)
 LDFLAGS = -s -w -X github.com/mushaidul/truth-be-told/backend/cmd.Version=$(VERSION)
 
-.PHONY: help dev run build fmt vet lint check docker-build docker-up docker-down clean
+# Load .env so `make run` and `make dev` see DATABASE_URL without anyone
+# exporting it by hand. Absent .env is fine -- every value except DATABASE_URL
+# has a default in config.Load.
+ifneq (,$(wildcard .env))
+include .env
+export
+endif
+
+.PHONY: help deps dev run build db-up db-down fmt vet lint check docker-build docker-up docker-down clean
 
 help:
 	@printf "$(BIGreen)Available targets:$(NC)\n"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
+
+deps: ## Add the database dependencies (run once)
+	go get gorm.io/gorm
+	go get gorm.io/driver/postgres
+	go mod tidy
+
+db-up: ## Start only Postgres
+	docker compose -f deploy/docker/docker-compose.yml up -d postgres
+
+db-down: ## Stop Postgres, keeping its data volume
+	docker compose -f deploy/docker/docker-compose.yml stop postgres
 
 dev: ## Run with live reload (requires air)
 	@if command -v air 	/dev/null 2	&1; then \

@@ -5,7 +5,7 @@ shutdown, and a health service — nothing else. Business features are built on
 top of this.
 
 **Stack:** Go 1.26 · [chi](https://github.com/go-chi/chi) router · stdlib
-`log/slog` · no database yet.
+`log/slog` · Postgres 18 · [GORM](https://gorm.io).
 
 ---
 
@@ -23,7 +23,20 @@ If that prints nothing or a version below 1.26, install from
 You do not need an exact patch version — `go.mod` pins `toolchain go1.26.6`, so
 any Go 1.21+ downloads the right one on first build.
 
-## 2. Start the server
+## 2. Fetch dependencies and start Postgres
+
+Once per clone:
+
+```bash
+cd backend
+cp .env.example .env
+make deps   # adds gorm and its postgres driver
+make db-up  # Postgres 18 in Docker, data kept in a named volume
+```
+
+The server creates its own tables on startup, so there is no migration step.
+
+## 3. Start the server
 
 ```bash
 cd backend
@@ -48,7 +61,7 @@ make dev
 `make dev` falls back to a plain run if `air` is missing. `make help` lists
 every target; `make docker-up` runs the same thing in a container.
 
-## 3. Call the health API
+## 4. Call the health API
 
 Two endpoints, answering two different questions.
 
@@ -78,12 +91,15 @@ curl -i localhost:8080/readyz
 ```
 
 ```json
-{ "status": "ready", "checks": [] }
+{
+  "status": "ready",
+  "checks": [{ "name": "postgres", "ok": true, "latency": "2ms" }]
+}
 ```
 
-`checks` is empty because nothing is wired yet. This is the endpoint that
-probes dependencies; when one fails it returns **503**, which tells a load
-balancer to stop routing here without restarting the process.
+This is the endpoint that probes dependencies; when one fails it returns
+**503**, which tells a load balancer to stop routing here without restarting
+the process.
 
 ### Adding a dependency check
 
@@ -126,6 +142,8 @@ backend/
 ├── cmd/server.go           # config, wiring, graceful shutdown
 ├── internal/
 │   ├── config/             # env → struct, loaded once
+│   ├── database/           # the connection, and the AutoMigrate list
+│   ├── models/             # one file per table, the whole schema
 │   ├── handlers/           # HTTP layer: router.go + one file per feature
 │   ├── services/           # business logic, knows nothing about HTTP
 │   └── middleware/         # tracing, logging, recovery, CORS
@@ -151,6 +169,51 @@ Three layers, and each one has a rule:
 4. Construct it in `cmd/server.go`
 
 Health is the worked example: read those four places and copy the shape.
+
+## Adding a table
+
+`users` is the worked example — three files, open them side by side.
+
+**1. Write the model** in `internal/models/`, one file per table. Copy
+`user.go`: uuid primary key filled in by `BeforeCreate`, `CreatedAt` and
+`UpdatedAt` named exactly that so GORM maintains them, constraints in the
+`gorm` tag.
+
+**2. Register it** in the `AutoMigrate` list in
+`internal/database/database.go`. A model that is not in that list has no table.
+
+**3. Write the service** in `internal/services/`, following `user.go`: it holds
+`*gorm.DB`, translates GORM errors into its own (`ErrUserNotFound`), and knows
+nothing about HTTP. Handlers turn those into status codes.
+
+Then wire it in `cmd/server.go`:
+
+```go
+campaignSvc := services.NewCampaignService(db)
+campaignHandler := handlers.NewCampaignHandler(campaignSvc)
+```
+
+and register the routes in `handlers.NewRouter`.
+
+### One rule about reads
+
+Never send a model straight to the client. Handlers build their own response
+struct with only the fields that response needs.
+
+This is not style. The creator's feedback inbox must never carry the original
+text of a submission that was rewritten precisely so they would not read it
+(see `docs/PHASE_1.md`), and a model struct carries every column by default.
+Select the columns you mean, into a struct that holds only those.
+
+### The schema updates itself on startup
+
+`AutoMigrate` creates tables, columns and indexes to match the models. It never
+drops or narrows anything, which makes it safe but not complete: renaming a
+column or changing its type is beyond it, and needs a hand-written migration.
+
+Fine while the schema is still moving. Worth replacing with real migration
+files once there is data no one wants to lose. `DB_AUTO_MIGRATE=false` stops
+the server touching the schema at all.
 
 ## Decisions, and why
 
@@ -180,18 +243,20 @@ it and pass an implementation in from `cmd/server.go`.
 `ports/` and `domain/` before there is a second implementation costs two
 directories and buys nothing.
 
-**Two dependencies:** chi and `google/uuid`. Check the stdlib first before
-adding a third — with `log/slog`, `errors.Join`, and Go 1.22 routing, it
-usually covers it.
+**GORM, and models as the schema.** No separate migration files while the
+schema is still moving: the model is the definition, and the server reconciles
+the database to it on boot. Fewer places to change, one fewer thing to
+remember. The cost is real and named above — AutoMigrate cannot rename or
+retype a column — and comes due when there is data worth protecting, not
+before.
+
+**Handlers never serialise a model.** The one discipline GORM asks for here.
+See the read rule above.
 
 ## Not built yet
 
-No database, no auth, no tests, no CI. The seams:
+No auth, no tests, no CI. The seams:
 
-- **Database** — construct the client in `cmd/server.go` and pass it to
-  services. Recommended: **pgx v5 + sqlc + goose** — write SQL, sqlc generates
-  typed Go against your schema, so a typo'd column fails the build rather than
-  production.
 - **Auth** — add `middleware.RequireAuth` and apply it to the `/api/v1`
   subtree in `router.go`. Validate the secret in `config.Load()` and return an
   error if it is missing; never default it.
