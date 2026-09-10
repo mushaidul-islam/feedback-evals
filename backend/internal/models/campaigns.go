@@ -10,19 +10,17 @@ import (
 // - uuid primary key, filled in by BeforeCreate
 // - CreatedAt and UpdatedAt named exactly that, so GORM maintains them
 // - constraints in the gorm tag, not left to be enforced by hand later
-type User struct {
-	ID            uuid.UUID `gorm:"type:uuid;primaryKey"`
-	GoogleSubject string    `gorm:"uniqueIndex;not null"`
-	Email         string    `gorm:"not null"`
-	Name          string    `gorm:"not null;default:''"`
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	Campaigns     []Campaign
+type Campaign struct {
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey"`
+	UserID    uuid.UUID `gorm:"type:uuid;not null;index"`
+	Name      string    `gorm:"not null;default:''"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // BeforeCreate assigns the id if the caller did not.
-func (u *User) BeforeCreate(tx *gorm.DB) error {
-	if u.ID != uuid.Nil {
+func (c *Campaign) BeforeCreate(tx *gorm.DB) error {
+	if c.ID != uuid.Nil {
 		return nil
 	}
 
@@ -30,7 +28,7 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 	if err != nil {
 		return err
 	}
-	u.ID = id
+	c.ID = id
 
 	return nil
 }

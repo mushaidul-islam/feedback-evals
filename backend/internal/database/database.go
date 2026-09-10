@@ -55,6 +55,7 @@ func Connect(url string, debug bool) (*gorm.DB, error) {
 func Migrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(
 		&models.User{},
+		&models.Campaign{},
 	); err != nil {
 		return fmt.Errorf("migrating schema: %w", err)
 	}
