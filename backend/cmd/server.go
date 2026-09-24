@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/mushaidul/truth-be-told/backend/internal/config"
 	"github.com/mushaidul/truth-be-told/backend/internal/database"
@@ -51,7 +52,8 @@ func Server() error {
 	)
 	healthHandler := handlers.NewHealthHandler(healthSvc)
 
-	appSvc := services.NewAppService()
+	llm := services.NewBasetenClient(&http.Client{Timeout: 20 * time.Second}, services.BasetenURL, cnf.BasetenAPIKey, cnf.BasetenModel)
+	appSvc := services.NewAppService(llm)
 	appHandler := handlers.NewAppHandler(appSvc)
 
 	srv := &http.Server{

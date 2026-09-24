@@ -55,3 +55,8 @@ func (s *UserService) GetUser(ctx context.Context, id uuid.UUID) (models.User, e
 
 	return user, nil
 }
+
+type SearchParams struct {
+	Limit int
+	Offset int
+}
