@@ -38,7 +38,6 @@ export default function CollectionPage() {
         <p className="font-head text-sm tracking-widest uppercase">
           Truth Be Told / Anonymous feedback
         </p>
-        <h2 className="font-head mt-2 text-5xl uppercase sm:text-7xl">Share your thoughts</h2>
         {error && (
           <Alert status="error" className="mt-10">
             <AlertDescription>{error}</AlertDescription>
