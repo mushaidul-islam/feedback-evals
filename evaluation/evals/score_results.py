@@ -57,7 +57,7 @@ def score(records: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[tuple[int
             2 * precision * recall / (precision + recall) if precision + recall else 0.0
         )
 
-    has_json_flags = all("json_valid" in record for record in records)
+    has_json_flags = all(record.get("json_valid") is not None for record in records)
     json_responses = (
         sum(bool(record["json_valid"]) for record in records) if has_json_flags else None
     )

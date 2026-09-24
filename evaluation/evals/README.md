@@ -3,6 +3,13 @@
 This eval sends rows sequentially to a pinned provider model API. BaseTen remains
 the default; RunInfra is an explicit comparison provider.
 
+TypeSafe Jev is a separate category-only comparison. It uses the same CSV rows
+and category labels, but Jev returns a typed choice rather than generated text.
+It does not produce or evaluate rewrites. Its JSON rate is reported as `n/a`;
+category validity, accuracy, macro F1, and confusion matrix remain comparable.
+It calls TypeSafe's [System One API](https://api.typesafe.ai/docs) directly with
+`jev-latest` and keeps the API key in `TYPESAFE_API_KEY`.
+
 - Model: `deepseek-ai/DeepSeek-V4-Flash-0731`
 - Endpoint: `https://inference.baseten.co/v1/chat/completions`
 - Temperature: `0`
@@ -33,6 +40,11 @@ python3 evals/run_openrouter_models.py
 export RUNINFRA_GATEWAY_KEY="..."
 python3 evals/run_openrouter_models.py --provider runinfra --dry-run
 python3 evals/run_openrouter_models.py --provider runinfra
+
+# TypeSafe Jev category-only comparison.
+export TYPESAFE_API_KEY="..."
+python3 evals/run_jev.py --dry-run
+python3 evals/run_jev.py
 ```
 
 Use `--limit 10` for the first 10 CSV rows, or repeat `--row-id ID` to run exact
@@ -55,6 +67,7 @@ Score a run with:
 
 ```sh
 python3 evals/score_results.py evals/results/run_TIMESTAMP
+# For Jev, use evals/results/jev_TIMESTAMP instead.
 ```
 
 This writes validity, accuracy, macro F1, a 4x4 confusion matrix, and a
