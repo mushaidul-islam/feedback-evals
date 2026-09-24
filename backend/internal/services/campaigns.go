@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -36,14 +37,12 @@ func (s *CampaignService) GetCampaign(ctx context.Context, id uuid.UUID) (models
 }
 
 type CreateCampaignInput struct {
-	UserID uuid.UUID
-	Name   string
+	Name string
 }
 
 func (s *CampaignService) CreateCampaign(ctx context.Context, input CreateCampaignInput) (models.Campaign, error) {
 	var campaign models.Campaign = models.Campaign{
-		Name:   input.Name,
-		UserID: input.UserID,
+		Name: input.Name,
 	}
 
 	err := s.db.WithContext(ctx).Create(&campaign).Error
@@ -54,9 +53,19 @@ func (s *CampaignService) CreateCampaign(ctx context.Context, input CreateCampai
 	return campaign, nil
 }
 
-func (s *CampaignService) ListCampaigns(ctx context.Context, queryParams SearchParams, userID uuid.UUID) ([]models.Campaign, error) {
-	var campaigns []models.Campaign
-	err := s.db.WithContext(ctx).Where("user_id = ?", userID).Limit(queryParams.Limit).Offset(queryParams.Offset).Order("created_at ASC").Find(&campaigns).Error
+type CampaignSummary struct {
+	ID            uuid.UUID
+	Name          string
+	CreatedAt     time.Time
+	FeedbackCount int64
+}
+
+func (s *CampaignService) ListCampaigns(ctx context.Context) ([]CampaignSummary, error) {
+	var campaigns []CampaignSummary
+	err := s.db.WithContext(ctx).Model(&models.Campaign{}).
+		Select("campaigns.id, campaigns.name, campaigns.created_at, count(feedbacks.id) as feedback_count").
+		Joins("left join feedbacks on feedbacks.campaign_id = campaigns.id").
+		Group("campaigns.id").Order("campaigns.created_at DESC").Scan(&campaigns).Error
 	if err != nil {
 		return nil, fmt.Errorf("list campaigns: %w", err)
 	}

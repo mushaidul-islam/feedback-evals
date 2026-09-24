@@ -14,7 +14,7 @@ import (
 
 // NewRouter builds the router. The whole route table lives in this one
 // function, so "where is this endpoint handled?" is one screen to answer.
-func NewRouter(cnf config.Config, log *slog.Logger, healthHandler *HealthHandler, appHandler *AppHandler) http.Handler {
+func NewRouter(cnf config.Config, log *slog.Logger, healthHandler *HealthHandler, appHandler *AppHandler, campaignHandler *CampaignHandler, feedbackHandler *FeedbackHandler) http.Handler {
 	r := chi.NewRouter()
 
 	// Order matters: Tracing first so later log lines carry a correlation ID,
@@ -40,8 +40,15 @@ func NewRouter(cnf config.Config, log *slog.Logger, healthHandler *HealthHandler
 	r.Get("/readyz", healthHandler.Ready)
 
 	r.Route("/api/v1", func(r chi.Router) {
+		r.Route("/campaign", func(r chi.Router) {
+			r.With(middleware.RequireTestKey).Get("/", campaignHandler.List)
+			r.With(middleware.RequireTestKey).Post("/", campaignHandler.Create)
+			r.With(middleware.RequireTestKey).Get("/{id}", campaignHandler.Get)
+			r.Get("/{id}/public", campaignHandler.Get)
+		})
 		r.Route("/feedback", func(r chi.Router) {
-			r.Post("/", appHandler.CreateFeedback)
+			r.Post("/", feedbackHandler.Create)
+			r.With(middleware.RequireTestKey).Get("/", feedbackHandler.List)
 		})
 	})
 

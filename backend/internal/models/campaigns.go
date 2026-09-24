@@ -12,7 +12,6 @@ import (
 // - constraints in the gorm tag, not left to be enforced by hand later
 type Campaign struct {
 	ID        uuid.UUID `gorm:"type:uuid;primaryKey"`
-	UserID    uuid.UUID `gorm:"type:uuid;not null;index"`
 	Name      string    `gorm:"not null;default:''"`
 	CreatedAt time.Time
 	UpdatedAt time.Time

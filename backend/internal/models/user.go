@@ -17,7 +17,6 @@ type User struct {
 	Name          string    `gorm:"not null;default:''"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
-	Campaigns     []Campaign
 }
 
 // BeforeCreate assigns the id if the caller did not.

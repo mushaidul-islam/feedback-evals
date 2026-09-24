@@ -55,10 +55,13 @@ func Server() error {
 	llm := services.NewBasetenClient(&http.Client{Timeout: 20 * time.Second}, services.BasetenURL, cnf.BasetenAPIKey, cnf.BasetenModel)
 	appSvc := services.NewAppService(llm)
 	appHandler := handlers.NewAppHandler(appSvc)
+	campaignSvc := services.NewCampaignService(db)
+	campaignHandler := handlers.NewCampaignHandler(campaignSvc)
+	feedbackHandler := handlers.NewFeedbackHandler(services.NewFeedbackService(db, campaignSvc, appSvc))
 
 	srv := &http.Server{
 		Addr:              cnf.Addr(),
-		Handler:           handlers.NewRouter(cnf, log, healthHandler, appHandler),
+		Handler:           handlers.NewRouter(cnf, log, healthHandler, appHandler, campaignHandler, feedbackHandler),
 		ReadTimeout:       cnf.ReadTimeout,
 		ReadHeaderTimeout: cnf.ReadTimeout,
 		WriteTimeout:      cnf.WriteTimeout,

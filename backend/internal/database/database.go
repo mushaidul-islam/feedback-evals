@@ -56,8 +56,16 @@ func Migrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(
 		&models.User{},
 		&models.Campaign{},
+		&models.Feedback{},
 	); err != nil {
 		return fmt.Errorf("migrating schema: %w", err)
+	}
+	// Older development databases have a required user_id column. Keep its
+	// existing data while allowing new campaigns without an owner.
+	if db.Migrator().HasColumn(&models.Campaign{}, "user_id") {
+		if err := db.Exec("ALTER TABLE campaigns ALTER COLUMN user_id DROP NOT NULL").Error; err != nil {
+			return fmt.Errorf("allowing campaigns without users: %w", err)
+		}
 	}
 	return nil
 }

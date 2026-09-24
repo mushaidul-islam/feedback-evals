@@ -35,6 +35,9 @@ bun run build
 
 ## API and authentication
 
-The frontend should treat a Go service as the API authority. Keep application secrets and database access in Go; the frontend only receives an authenticated session or short-lived access token.
+The Go service owns campaigns, feedback, and classification. The Next.js server
+calls it for the dashboard and forwards public submissions.
 
-When the Go backend is added, configure its public URL as `NEXT_PUBLIC_API_URL` in `.env.local`. Do not place private signing keys or provider secrets in `NEXT_PUBLIC_*` variables.
+Set `API_URL` to the Go backend's URL as seen from the Next.js server. It defaults to `http://localhost:8080` for local development. The temporary `Bearer test-key` header is used only in server-side requests and server actions. It must not go in a `NEXT_PUBLIC_*` variable.
+
+`/c` lists campaigns and creates new ones. `/c/<campaign-id>` shows saved feedback and links to the public `/f/c/<campaign-id>` collection page. Anyone who can open the dashboard pages can read their contents during this test. Anonymous submitters see a sent confirmation for every valid classified submission, including categories that the backend discards.

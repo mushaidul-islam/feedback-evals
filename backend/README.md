@@ -1,8 +1,7 @@
 # Truth Be Told — Backend
 
-Go HTTP API scaffold. Config, structured logging, middleware, graceful
-shutdown, and a health service — nothing else. Business features are built on
-top of this.
+Go HTTP API for campaigns and anonymous feedback, with structured logging,
+middleware, graceful shutdown, and health checks.
 
 **Stack:** Go 1.26 · [chi](https://github.com/go-chi/chi) router · stdlib
 `log/slog` · Postgres 18 · [GORM](https://gorm.io).
@@ -134,6 +133,38 @@ curl -i localhost:8080/healthz | grep -i tracing   # every response carries a tr
 
 ---
 
+## Campaign feedback API
+
+Campaigns have an ID and a name. The name is also the context sent to the
+feedback classifier. Feedback is stored only when the classifier accepts it:
+category 1 stores the submitted text, category 2 stores only the rewrite, and
+categories 3 and 4 store nothing. All four categories return `{"sent":true}`
+to the submitter. The creator-facing API never returns the original text for a
+rewritten submission.
+
+Routes are under `/api/v1`:
+
+| Route | Purpose | Key required |
+|---|---|---|
+| `GET /campaign/` | List campaigns and accepted feedback counts | Yes |
+| `POST /campaign/` | Create with `{"name":"..."}` | Yes |
+| `GET /campaign/{id}` | Campaign detail | Yes |
+| `GET /campaign/{id}/public` | Campaign name for the public form | No |
+| `GET /feedback/?campaign_id={id}` | Saved feedback for one campaign | Yes |
+| `POST /feedback/` | Submit `{"campaign_id":"...","text":"..."}` | No |
+
+The temporary creator check requires exactly `Authorization: Bearer test-key`.
+It is not tied to a user. Dashboard pages currently use this key on the Next.js
+server but are publicly viewable, so accepted feedback must be considered
+public during this test. Health routes stay outside the check. Replace this
+temporary arrangement before collecting private feedback.
+
+Run `go test ./...` for unit checks. Set `TEST_DATABASE_URL` to a disposable
+Postgres database URL to also run the campaign and feedback integration test.
+The test creates and removes its own campaign and feedback rows.
+
+---
+
 ## Structure
 
 ```
@@ -255,14 +286,9 @@ See the read rule above.
 
 ## Not built yet
 
-No auth, no tests, no CI. The seams:
-
-- **Auth** — add `middleware.RequireAuth` and apply it to the `/api/v1`
-  subtree in `router.go`. Validate the secret in `config.Load()` and return an
-  error if it is missing; never default it.
-- **Tests** — none yet, by choice, since there is no business logic to protect.
-  Worth adding with the first real feature: stdlib `testing` plus
-  `net/http/httptest` covers handlers with no extra dependency.
+User sign-in, campaign editing or deletion, and follow-up questions are not
+part of this increment. The test key is a temporary route check, not creator
+authentication.
 
 ## Relationship to `docs/MVP.md`
 
