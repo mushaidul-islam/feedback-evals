@@ -1,43 +1,61 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useState, type FormEvent } from 'react';
 
-import { submitFeedback } from '@/app/actions';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 
 export function FeedbackForm({ campaignId }: { campaignId: string }) {
-  const [state, action, pending] = useActionState(submitFeedback.bind(null, campaignId), {
-    message: '',
-  });
-  if (state.sent)
+  const [sent, setSent] = useState(false);
+  const [message, setMessage] = useState('');
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const text = String(new FormData(event.currentTarget).get('text') ?? '');
+    if ([...text.trim()].length < 10) {
+      setMessage('Write at least 10 characters.');
+      return;
+    }
+    void fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ campaign_id: campaignId, text }),
+    }).catch(() => undefined);
+    setSent(true);
+  }
+
+  if (sent)
     return (
       <Alert status="success">
-        <AlertDescription>{state.message}</AlertDescription>
+        <AlertDescription>Your feedback was sent.</AlertDescription>
       </Alert>
     );
   return (
-    <form action={action} className="space-y-5">
-      <label htmlFor="feedback-text" className="font-head block text-lg uppercase">
-        Your feedback
-      </label>
+    <form
+      onSubmit={submit}
+      className="border-border bg-accent relative border-2 p-3 shadow-xl sm:p-4"
+    >
       <Textarea
-        id="feedback-text"
+        aria-label="Feedback"
         name="text"
         required
-        minLength={10}
-        aria-describedby={state.message ? 'feedback-error' : undefined}
-        className="min-h-52 bg-white p-4 text-xl"
-        placeholder="Tell them what you think…"
+        aria-describedby={message ? 'feedback-error' : undefined}
+        className="border-border h-44 resize-none border-2 px-4 py-4 pr-18 font-sans text-xl leading-tight font-semibold sm:h-52 sm:px-5 sm:py-5 sm:pr-22 sm:text-2xl"
+        placeholder=""
       />
-      <Button type="submit" size="lg" disabled={pending}>
-        {pending ? 'Sending…' : 'Send anonymously →'}
+      <Button
+        aria-label="Send feedback"
+        className="absolute right-6 bottom-6 size-14 p-0 text-4xl leading-none sm:right-8 sm:bottom-8 sm:size-16"
+        size="icon-lg"
+        type="submit"
+      >
+        <span aria-hidden="true">→</span>
       </Button>
-      {state.message && (
-        <Alert id="feedback-error" status="error">
-          <AlertDescription>{state.message}</AlertDescription>
-        </Alert>
+      {message && (
+        <p id="feedback-error" className="mt-3 font-bold text-black">
+          {message}
+        </p>
       )}
     </form>
   );

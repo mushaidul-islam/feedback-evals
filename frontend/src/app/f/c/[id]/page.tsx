@@ -1,28 +1,58 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getPublicCampaign } from '@/lib/api';
+'use client';
+
+import { useParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import type { Campaign } from '@/lib/api-types';
 
 import { FeedbackForm } from './feedback-form';
 
-export default async function CollectionPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const campaign = await getPublicCampaign(id);
+export default function CollectionPage() {
+  const { id } = useParams<{ id: string }>();
+  const [campaign, setCampaign] = useState<Campaign | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setCampaign(null);
+    setError('');
+    fetch(`/api/campaign/${encodeURIComponent(id)}/public`, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error('Could not load campaign');
+        return response.json() as Promise<Campaign>;
+      })
+      .then((loaded) => {
+        if (!controller.signal.aborted) setCampaign(loaded);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted)
+          setError('Could not load this campaign. Refresh the page to try again.');
+      });
+    return () => controller.abort();
+  }, [id]);
+
   return (
-    <main className="grid min-h-screen place-items-center px-5 py-10 sm:px-8">
+    <main className="grid min-h-screen place-items-center px-5 py-5 sm:px-8">
       <div className="w-full max-w-3xl">
         <p className="font-head text-sm tracking-widest uppercase">
           Truth Be Told / Anonymous feedback
         </p>
-        <h1 className="font-head mt-5 text-5xl uppercase sm:text-7xl">Share your thoughts</h1>
-        <Card className="bg-accent mt-10">
-          <CardHeader>
-            <CardTitle className="font-head text-3xl break-words uppercase sm:text-4xl">
+        <h2 className="font-head mt-2 text-5xl uppercase sm:text-7xl">Share your thoughts</h2>
+        {error && (
+          <Alert status="error" className="mt-10">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {!campaign && !error && <p className="mt-10 text-lg">Loading campaign…</p>}
+        {campaign && (
+          <>
+            <h4 className="mt-20 mb-6 max-w-2xl font-sans text-xl leading-snug font-bold sm:text-2xl">
               {campaign.name}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </h4>
             <FeedbackForm campaignId={campaign.id} />
-          </CardContent>
-        </Card>
+          </>
+        )}
       </div>
     </main>
   );
