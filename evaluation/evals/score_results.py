@@ -135,9 +135,9 @@ def main() -> int:
         writer.writerows(disagreements)
 
     json_rate = summary["json_rate"]
-    json_text = "n/a" if json_rate is None else f"{json_rate:.1%}"
+    json_text = "" if json_rate is None else f"JSON {json_rate:.1%} | "
     print(
-        f"JSON {json_text} | Validity {summary['validity_rate']:.1%} "
+        f"{json_text}Validity {summary['validity_rate']:.1%} "
         f"| Accuracy {summary['accuracy']:.1%} "
         f"| Macro F1 {summary['macro_f1']:.3f}"
     )

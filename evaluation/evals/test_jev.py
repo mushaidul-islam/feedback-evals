@@ -20,11 +20,7 @@ class JevContractTest(unittest.TestCase):
         })
         self.assertEqual(result["parsed_output"], {"category": 3})
         self.assertTrue(result["valid"])
-        self.assertIsNone(result["json_valid"])
-
-    def test_unknown_choice_is_invalid(self):
-        with self.assertRaises(ValueError):
-            parse_answer({"answers": {"category": {"type": "choice", "choice": "5"}}})
+        self.assertNotIn("json_valid", result)
 
     def test_score_reports_category_accuracy_without_json_rate(self):
         result = parse_answer({

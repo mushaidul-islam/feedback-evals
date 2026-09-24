@@ -5,7 +5,7 @@ the default; RunInfra is an explicit comparison provider.
 
 TypeSafe Jev is a separate category-only comparison. It uses the same CSV rows
 and category labels, but Jev returns a typed choice rather than generated text.
-It does not produce or evaluate rewrites. Its JSON rate is reported as `n/a`;
+It does not produce or evaluate rewrites. JSON validity is not measured for Jev;
 category validity, accuracy, macro F1, and confusion matrix remain comparable.
 It calls TypeSafe's [System One API](https://api.typesafe.ai/docs) directly with
 `jev-latest` and keeps the API key in `TYPESAFE_API_KEY`.

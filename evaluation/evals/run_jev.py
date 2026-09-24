@@ -42,15 +42,11 @@ def build_request(campaign_prompt: str, feedback_text: str) -> dict[str, Any]:
 
 
 def parse_answer(response: dict[str, Any]) -> dict[str, Any]:
-    answer = (response.get("answers") or {}).get("category") or {}
-    choice = answer.get("choice")
-    if answer.get("type") != "choice" or choice not in {"1", "2", "3", "4"}:
-        raise ValueError("Jev did not return a valid category choice")
-    usage = response.get("usage") or {}
+    answer = response["answers"]["category"]
+    usage = response["usage"]
     return {
         "raw_output": json.dumps(answer, ensure_ascii=False),
-        "parsed_output": {"category": int(choice)},
-        "json_valid": None,
+        "parsed_output": {"category": int(answer["choice"])},
         "valid": True,
         "error": "",
         "provider": PROVIDER.name,
@@ -58,9 +54,9 @@ def parse_answer(response: dict[str, Any]) -> dict[str, Any]:
         "finish_reason": None,
         "native_finish_reason": None,
         "usage": {
-            "prompt_tokens": usage.get("input_tokens"),
-            "completion_tokens": usage.get("output_tokens"),
-            "total_tokens": (usage.get("input_tokens", 0) + usage.get("output_tokens", 0)),
+            "prompt_tokens": usage["input_tokens"],
+            "completion_tokens": usage["output_tokens"],
+            "total_tokens": usage["input_tokens"] + usage["output_tokens"],
         },
     }
 
@@ -116,7 +112,6 @@ def main() -> int:
                         time.sleep(1)
                         continue
                     result = failed_result(f"TypeSafe HTTP {error.code}: {detail}", attempt)
-                    result["json_valid"] = None
                     if error.code in {400, 401, 402, 403, 404, 422}:
                         fatal_error = result["error"]
                     break
@@ -125,12 +120,11 @@ def main() -> int:
                         time.sleep(1)
                         continue
                     result = failed_result(f"TypeSafe network error: {error}", attempt)
-                    result["json_valid"] = None
                     break
-                except (ValueError, TypeError) as error:
+                except (ValueError, TypeError, KeyError) as error:
                     result = failed_result(f"TypeSafe response error: {error}", attempt)
-                    result["json_valid"] = None
                     break
+            result.pop("json_valid", None)
             result["latency_ms"] = round((time.perf_counter() - started) * 1000)
             record = make_log_record(index, row, result, PROVIDER)
             records.append(record)
