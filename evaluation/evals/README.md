@@ -7,6 +7,7 @@ TypeSafe Jev is a separate category-only comparison. It uses the same CSV rows
 and category labels, but Jev returns a typed choice rather than generated text.
 It does not produce or evaluate rewrites. JSON validity is not measured for Jev;
 category validity, accuracy, macro F1, and confusion matrix remain comparable.
+An unexpected choice is logged with its raw answer as invalid and is not scored.
 It calls TypeSafe's [System One API](https://api.typesafe.ai/docs) directly with
 `jev-latest` and keeps the API key in `TYPESAFE_API_KEY`.
 
@@ -14,7 +15,7 @@ It calls TypeSafe's [System One API](https://api.typesafe.ai/docs) directly with
 - Endpoint: `https://inference.baseten.co/v1/chat/completions`
 - Temperature: `0`
 - Maximum output: `4096` tokens
-- Delay between requests: `5` seconds
+- Delay between requests: `1` second
 - Reasoning: off
 - Provider: BaseTen directly
 
@@ -49,7 +50,7 @@ python3 evals/run_jev.py
 
 Use `--limit 10` for the first 10 CSV rows, or repeat `--row-id ID` to run exact
 rows. There is no sampling, concurrency, repeat mode, fallback, or resume mode.
-Requests start at least five seconds apart. A network error or HTTP 429 is retried
+Requests start at least one second apart. A network error or HTTP 429 is retried
 once. Other failures are recorded once.
 
 The runner checks only what it needs: required columns, unique nonempty IDs,
@@ -58,7 +59,7 @@ drops, or reorders data.
 
 Each run writes:
 
-- `metadata.json`: exact prompt, schema, model, provider, rows, and settings.
+- `metadata.json`: model, provider, rows, and provider-specific request settings.
 - `responses.jsonl`: raw output, parsed output, provider, finish reason, error,
   timing, and all useful token counts.
 - `results.csv`: the same response data in a flat table.
@@ -71,8 +72,8 @@ python3 evals/score_results.py evals/results/run_TIMESTAMP
 ```
 
 This writes validity, accuracy, macro F1, a 4x4 confusion matrix, and a
-disagreements CSV. Invalid responses count as incorrect and as false negatives
-for macro F1.
+disagreements CSV. Invalid responses remain in the logs and count toward the
+validity rate, but are excluded from accuracy, macro F1, and the confusion matrix.
 
 ## Structured output settings
 
@@ -81,13 +82,11 @@ generic JSON. `strict = true` asks BaseTen to enforce that schema exactly; with
 `false`, the schema is guidance and a valid-looking response may still violate
 it. There is no provider router or fallback because BaseTen is called directly.
 
-The schema uses `minLength: 1`, so `""` is not an allowed category-2 rewrite.
-The runner also enforces the category/rewrite relationship without repairing a
-bad response.
+The runner requires a nonempty category-2 rewrite and rejects a nonempty rewrite
+for other categories without repairing a bad response.
 
-Every JSON response is retained in `responses.jsonl`, even when local validation
-marks it invalid. Scoring reports JSON and validity rates, then calculates
-accuracy and macro F1 from locally valid responses only.
+Every response is retained in `responses.jsonl`, even when local validation
+marks it invalid. Scoring reports JSON and validity rates for all requests.
 
 BaseTen caching is automatic. The shared prompt is small enough that caching may
 not help, but `cached_tokens` and `cache_write_tokens` are logged when returned.

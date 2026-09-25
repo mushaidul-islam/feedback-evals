@@ -31,6 +31,17 @@ class JevContractTest(unittest.TestCase):
         self.assertEqual(summary["accuracy"], 1.0)
         self.assertIsNone(summary["json_rate"])
 
+    def test_unexpected_choice_is_invalid(self):
+        result = parse_answer({
+            "answers": {"category": {"choice": "5"}},
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        })
+        self.assertFalse(result["valid"])
+        self.assertIsNone(result["parsed_output"])
+        self.assertIn('"choice": "5"', result["raw_output"])
+        summary, _ = score([{"expected": {"category": 3}, **result}])
+        self.assertEqual(summary["valid"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

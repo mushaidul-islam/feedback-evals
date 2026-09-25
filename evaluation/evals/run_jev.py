@@ -43,12 +43,14 @@ def build_request(campaign_prompt: str, feedback_text: str) -> dict[str, Any]:
 
 def parse_answer(response: dict[str, Any]) -> dict[str, Any]:
     answer = response["answers"]["category"]
+    choice = answer["choice"]
+    valid = isinstance(choice, str) and choice in QUESTION["criteria"]
     usage = response["usage"]
     return {
         "raw_output": json.dumps(answer, ensure_ascii=False),
-        "parsed_output": {"category": int(answer["choice"])},
-        "valid": True,
-        "error": "",
+        "parsed_output": {"category": int(choice)} if valid else None,
+        "valid": valid,
+        "error": "" if valid else "Jev returned a category outside the offered choices",
         "provider": PROVIDER.name,
         "generation_id": None,
         "finish_reason": None,
