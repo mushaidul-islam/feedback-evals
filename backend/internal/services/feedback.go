@@ -44,8 +44,9 @@ func (s *FeedbackService) Submit(ctx context.Context, campaignID uuid.UUID, text
 	return nil
 }
 
-func (s *FeedbackService) List(ctx context.Context, campaignID uuid.UUID) ([]models.Feedback, error) {
-	if _, err := s.campaigns.GetCampaign(ctx, campaignID); err != nil {
+// List returns a campaign's saved feedback, only if userID owns the campaign.
+func (s *FeedbackService) List(ctx context.Context, campaignID, userID uuid.UUID) ([]models.Feedback, error) {
+	if _, err := s.campaigns.GetOwnedCampaign(ctx, campaignID, userID); err != nil {
 		return nil, err
 	}
 	var feedback []models.Feedback

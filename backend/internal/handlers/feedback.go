@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/mushaidul/truth-be-told/backend/internal/middleware"
 	"github.com/mushaidul/truth-be-told/backend/internal/services"
 	"github.com/mushaidul/truth-be-told/backend/pkg/utils"
 )
@@ -64,7 +65,8 @@ func (h *FeedbackHandler) List(w http.ResponseWriter, r *http.Request) {
 		utils.Error(w, r, http.StatusBadRequest, utils.CodeInvalidArgument, "Invalid campaign ID.")
 		return
 	}
-	feedback, err := h.service.List(r.Context(), id)
+	userID, _ := middleware.UserID(r.Context())
+	feedback, err := h.service.List(r.Context(), id, userID)
 	if errors.Is(err, services.ErrCampaignNotFound) {
 		utils.Error(w, r, http.StatusNotFound, utils.CodeNotFound, "Campaign not found.")
 		return

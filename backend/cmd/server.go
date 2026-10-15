@@ -12,9 +12,12 @@ import (
 	"syscall"
 	"time"
 
+	"google.golang.org/api/idtoken"
+
 	"github.com/mushaidul/truth-be-told/backend/internal/config"
 	"github.com/mushaidul/truth-be-told/backend/internal/database"
 	"github.com/mushaidul/truth-be-told/backend/internal/handlers"
+	"github.com/mushaidul/truth-be-told/backend/internal/middleware"
 	"github.com/mushaidul/truth-be-told/backend/internal/services"
 )
 
@@ -59,9 +62,14 @@ func Server() error {
 	campaignHandler := handlers.NewCampaignHandler(campaignSvc)
 	feedbackHandler := handlers.NewFeedbackHandler(services.NewFeedbackService(db, campaignSvc, appSvc))
 
+	userSvc := services.NewUserService(db)
+	authSvc := services.NewAuthService(db, userSvc, cnf.GoogleClientID, idtoken.Validate)
+	authHandler := handlers.NewAuthHandler(authSvc, userSvc)
+	requireUser := middleware.RequireUser(authSvc.UserIDForToken)
+
 	srv := &http.Server{
 		Addr:              cnf.Addr(),
-		Handler:           handlers.NewRouter(cnf, log, healthHandler, appHandler, campaignHandler, feedbackHandler),
+		Handler:           handlers.NewRouter(cnf, log, healthHandler, appHandler, campaignHandler, feedbackHandler, authHandler, requireUser),
 		ReadTimeout:       cnf.ReadTimeout,
 		ReadHeaderTimeout: cnf.ReadTimeout,
 		WriteTimeout:      cnf.WriteTimeout,

@@ -24,6 +24,8 @@ type Config struct {
 	AutoMigrate   bool
 	BasetenAPIKey string
 	BasetenModel  string
+
+	GoogleClientID string
 }
 
 // Addr returns the host:port the server listens on.
@@ -47,6 +49,7 @@ func Load() (Config, error) {
 		DatabaseURL:    os.Getenv("DATABASE_URL"),
 		BasetenAPIKey:  os.Getenv("BASETEN_API_KEY"),
 		BasetenModel:   env("BASETEN_MODEL", "deepseek-ai/DeepSeek-V4-Flash-0731"),
+		GoogleClientID: os.Getenv("GOOGLE_CLIENT_ID"),
 	}
 
 	if _, err := strconv.Atoi(c.Port); err != nil {
@@ -61,6 +64,11 @@ func Load() (Config, error) {
 	}
 	if c.BasetenAPIKey == "" {
 		return c, fmt.Errorf("BASETEN_API_KEY: required, see .env.example")
+	}
+	// Without it every Google sign-in would be rejected, so fail at startup
+	// rather than on the first person who tries.
+	if c.GoogleClientID == "" {
+		return c, fmt.Errorf("GOOGLE_CLIENT_ID: required, see .env.example")
 	}
 
 	var err error

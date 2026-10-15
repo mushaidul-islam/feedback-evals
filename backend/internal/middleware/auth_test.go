@@ -1,28 +1,49 @@
 package middleware
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
-func TestRequireTestKey(t *testing.T) {
+func TestRequireUser(t *testing.T) {
+	want := uuid.New()
+	lookup := func(_ context.Context, token string) (uuid.UUID, error) {
+		if token == "good-token" {
+			return want, nil
+		}
+		return uuid.Nil, errors.New("unknown session")
+	}
+
 	for _, tc := range []struct {
-		name, key string
-		want      int
+		name, header string
+		status       int
 	}{
 		{"missing", "", http.StatusUnauthorized},
-		{"wrong", "Bearer wrong", http.StatusUnauthorized},
-		{"exact", "Bearer test-key", http.StatusNoContent},
+		{"not bearer", "Basic good-token", http.StatusUnauthorized},
+		{"empty bearer", "Bearer ", http.StatusUnauthorized},
+		{"unknown token", "Bearer bad-token", http.StatusUnauthorized},
+		{"valid token", "Bearer good-token", http.StatusNoContent},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			h := RequireTestKey(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+			h := RequireUser(lookup)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if got, ok := UserID(r.Context()); !ok || got != want {
+					t.Errorf("user id = %v, %v; want %v", got, ok, want)
+				}
+				w.WriteHeader(http.StatusNoContent)
+			}))
 			r := httptest.NewRequest(http.MethodGet, "/api/v1/campaign", nil)
-			r.Header.Set("Authorization", tc.key)
+			if tc.header != "" {
+				r.Header.Set("Authorization", tc.header)
+			}
 			w := httptest.NewRecorder()
 			h.ServeHTTP(w, r)
-			if w.Code != tc.want {
-				t.Fatalf("status = %d, want %d", w.Code, tc.want)
+			if w.Code != tc.status {
+				t.Fatalf("status = %d, want %d", w.Code, tc.status)
 			}
 		})
 	}
