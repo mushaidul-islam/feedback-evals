@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -10,6 +10,7 @@ import type { Campaign, Feedback } from '@/lib/api-types';
 
 export default function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [feedback, setFeedback] = useState<Feedback[]>([]);
   const [error, setError] = useState('');
@@ -23,6 +24,11 @@ export default function CampaignDetailPage() {
       fetch(`/api/feedback?campaign_id=${encodeURIComponent(id)}`, { signal: controller.signal }),
     ])
       .then(async ([campaignResponse, feedbackResponse]) => {
+        // The session cookie exists but the API no longer accepts it.
+        if (campaignResponse.status === 401 || feedbackResponse.status === 401) {
+          router.replace('/login');
+          return null;
+        }
         if (!campaignResponse.ok || !feedbackResponse.ok)
           throw new Error('Could not load campaign');
         return Promise.all([
@@ -30,18 +36,18 @@ export default function CampaignDetailPage() {
           feedbackResponse.json() as Promise<Feedback[]>,
         ]);
       })
-      .then(([loadedCampaign, loadedFeedback]) => {
-        if (!controller.signal.aborted) {
-          setCampaign(loadedCampaign);
-          setFeedback(loadedFeedback);
-        }
+      .then((loaded) => {
+        if (!loaded || controller.signal.aborted) return;
+        const [loadedCampaign, loadedFeedback] = loaded;
+        setCampaign(loadedCampaign);
+        setFeedback(loadedFeedback);
       })
       .catch(() => {
         if (!controller.signal.aborted)
           setError('Could not load this campaign. Refresh the page to try again.');
       });
     return () => controller.abort();
-  }, [id]);
+  }, [id, router]);
 
   return (
     <main className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8 sm:py-16">
