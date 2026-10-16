@@ -22,10 +22,24 @@ func NewCampaignService(db *gorm.DB) *CampaignService {
 	return &CampaignService{db: db}
 }
 
+// GetCampaign reads any campaign by id. Only for public reads -- the
+// collection page and feedback submission. Creator routes use
+// GetOwnedCampaign.
 func (s *CampaignService) GetCampaign(ctx context.Context, id uuid.UUID) (models.Campaign, error) {
+	return s.first(ctx, "id = ?", id)
+}
+
+// GetOwnedCampaign reads a campaign only if userID owns it. Someone else's
+// campaign is reported as not found rather than forbidden, so ids cannot be
+// probed to learn which campaigns exist.
+func (s *CampaignService) GetOwnedCampaign(ctx context.Context, id, userID uuid.UUID) (models.Campaign, error) {
+	return s.first(ctx, "id = ? AND user_id = ?", id, userID)
+}
+
+func (s *CampaignService) first(ctx context.Context, query string, args ...any) (models.Campaign, error) {
 	var campaign models.Campaign
 
-	err := s.db.WithContext(ctx).First(&campaign, "id = ?", id).Error
+	err := s.db.WithContext(ctx).Where(query, args...).First(&campaign).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return models.Campaign{}, ErrCampaignNotFound
@@ -37,12 +51,14 @@ func (s *CampaignService) GetCampaign(ctx context.Context, id uuid.UUID) (models
 }
 
 type CreateCampaignInput struct {
-	Name string
+	UserID uuid.UUID
+	Name   string
 }
 
 func (s *CampaignService) CreateCampaign(ctx context.Context, input CreateCampaignInput) (models.Campaign, error) {
-	var campaign models.Campaign = models.Campaign{
-		Name: input.Name,
+	campaign := models.Campaign{
+		UserID: input.UserID,
+		Name:   input.Name,
 	}
 
 	err := s.db.WithContext(ctx).Create(&campaign).Error
@@ -60,11 +76,13 @@ type CampaignSummary struct {
 	FeedbackCount int64
 }
 
-func (s *CampaignService) ListCampaigns(ctx context.Context) ([]CampaignSummary, error) {
+// ListCampaigns returns userID's campaigns, newest first.
+func (s *CampaignService) ListCampaigns(ctx context.Context, userID uuid.UUID) ([]CampaignSummary, error) {
 	var campaigns []CampaignSummary
 	err := s.db.WithContext(ctx).Model(&models.Campaign{}).
 		Select("campaigns.id, campaigns.name, campaigns.created_at, count(feedbacks.id) as feedback_count").
 		Joins("left join feedbacks on feedbacks.campaign_id = campaigns.id").
+		Where("campaigns.user_id = ?", userID).
 		Group("campaigns.id").Order("campaigns.created_at DESC").Scan(&campaigns).Error
 	if err != nil {
 		return nil, fmt.Errorf("list campaigns: %w", err)

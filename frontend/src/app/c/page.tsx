@@ -1,15 +1,18 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Campaign } from '@/lib/api-types';
 
+import { AccountBar } from './account-bar';
 import { CreateForm } from './create-form';
 
 export default function CampaignsPage() {
+  const router = useRouter();
   const [campaigns, setCampaigns] = useState<Campaign[] | null>(null);
   const [error, setError] = useState('');
 
@@ -17,22 +20,30 @@ export default function CampaignsPage() {
     const controller = new AbortController();
     fetch('/api/campaign', { signal: controller.signal })
       .then((response) => {
+        // The session cookie exists but the API no longer accepts it.
+        if (response.status === 401) {
+          router.replace('/login');
+          return null;
+        }
         if (!response.ok) throw new Error('Could not load campaigns');
         return response.json() as Promise<Campaign[]>;
       })
       .then((loaded) => {
-        if (!controller.signal.aborted) setCampaigns(loaded);
+        if (loaded && !controller.signal.aborted) setCampaigns(loaded);
       })
       .catch(() => {
         if (!controller.signal.aborted)
           setError('Could not load campaigns. Refresh the page to try again.');
       });
     return () => controller.abort();
-  }, []);
+  }, [router]);
 
   return (
     <main className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8 sm:py-16">
-      <p className="font-head text-sm tracking-widest uppercase">Truth Be Told / Campaigns</p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <p className="font-head text-sm tracking-widest uppercase">Truth Be Told / Campaigns</p>
+        <AccountBar />
+      </div>
       <h1 className="font-head mt-4 text-5xl uppercase sm:text-7xl">Your campaigns</h1>
       <p className="mt-4 max-w-2xl text-lg">
         Create a feedback link, then open a campaign to see what people sent.

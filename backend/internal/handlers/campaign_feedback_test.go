@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -11,10 +13,30 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"google.golang.org/api/idtoken"
+
 	"github.com/mushaidul/truth-be-told/backend/internal/config"
 	"github.com/mushaidul/truth-be-told/backend/internal/database"
+	"github.com/mushaidul/truth-be-told/backend/internal/middleware"
 	"github.com/mushaidul/truth-be-told/backend/internal/services"
 )
+
+// fakeGoogle accepts any credential starting with "valid:" and treats the rest
+// as the Google subject, so tests can sign in as anyone without calling Google.
+func fakeGoogle(_ context.Context, credential, audience string) (*idtoken.Payload, error) {
+	subject, ok := strings.CutPrefix(credential, "valid:")
+	if !ok || audience != "test-client-id" {
+		return nil, errors.New("bad credential")
+	}
+	return &idtoken.Payload{
+		Subject: subject,
+		Claims: map[string]any{
+			"email":          subject + "@example.com",
+			"email_verified": true,
+			"name":           "Test " + subject,
+		},
+	}, nil
+}
 
 func TestCampaignFeedbackFlow(t *testing.T) {
 	url := os.Getenv("TEST_DATABASE_URL")
@@ -59,25 +81,74 @@ func TestCampaignFeedbackFlow(t *testing.T) {
 
 	classifier := services.NewAppService(services.NewBasetenClient(model.Client(), model.URL, "provider-key", "test-model"))
 	campaignSvc := services.NewCampaignService(db)
-	app := NewAppHandler(classifier)
-	router := NewRouter(config.Config{}, slog.New(slog.NewTextHandler(io.Discard, nil)), NewHealthHandler(services.NewHealth("test")), app, NewCampaignHandler(campaignSvc), NewFeedbackHandler(services.NewFeedbackService(db, campaignSvc, classifier)))
-	call := func(method, path, key, body string) *httptest.ResponseRecorder {
+	userSvc := services.NewUserService(db)
+	authSvc := services.NewAuthService(db, userSvc, "test-client-id", fakeGoogle)
+	router := NewRouter(
+		config.Config{},
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		NewHealthHandler(services.NewHealth("test")),
+		NewAppHandler(classifier),
+		NewCampaignHandler(campaignSvc),
+		NewFeedbackHandler(services.NewFeedbackService(db, campaignSvc, classifier)),
+		NewAuthHandler(authSvc, userSvc),
+		middleware.RequireUser(authSvc.UserIDForToken),
+	)
+	call := func(method, path, token, body string) *httptest.ResponseRecorder {
 		t.Helper()
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
-		if key != "" {
-			r.Header.Set("Authorization", key)
+		if token != "" {
+			r.Header.Set("Authorization", "Bearer "+token)
 		}
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, r)
 		return w
 	}
+
+	ownerSubject := "owner-" + uuid.NewString()
+	otherSubject := "other-" + uuid.NewString()
+	defer db.Exec("DELETE FROM users WHERE google_subject IN (?, ?)", ownerSubject, otherSubject)
+
+	signIn := func(subject string) (token string, userID uuid.UUID) {
+		t.Helper()
+		w := call("POST", "/api/v1/auth/google", "", `{"credential":"valid:`+subject+`"}`)
+		if w.Code != http.StatusOK {
+			t.Fatalf("sign in %s: %d %s", subject, w.Code, w.Body.String())
+		}
+		var body struct {
+			Token string `json:"token"`
+			User  struct {
+				ID uuid.UUID `json:"id"`
+			} `json:"user"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		return body.Token, body.User.ID
+	}
+
+	if got := call("POST", "/api/v1/auth/google", "", `{"credential":"forged"}`).Code; got != http.StatusUnauthorized {
+		t.Fatalf("forged credential: %d", got)
+	}
+	owner, ownerID := signIn(ownerSubject)
+	// A returning user must get the same account, not a new id each time.
+	ownerAgain, ownerIDAgain := signIn(ownerSubject)
+	if ownerIDAgain != ownerID {
+		t.Fatalf("second sign-in returned user %s, want %s", ownerIDAgain, ownerID)
+	}
+	other, _ := signIn(otherSubject)
+
+	me := call("GET", "/api/v1/auth/me", owner, "")
+	if me.Code != http.StatusOK || !strings.Contains(me.Body.String(), ownerSubject+"@example.com") {
+		t.Fatalf("me: %d %s", me.Code, me.Body.String())
+	}
+
 	if got := call("GET", "/api/v1/campaign/", "", "").Code; got != http.StatusUnauthorized {
-		t.Fatalf("campaign list without key: %d", got)
+		t.Fatalf("campaign list without session: %d", got)
 	}
-	if got := call("GET", "/api/v1/campaign/", "Bearer wrong", "").Code; got != http.StatusUnauthorized {
-		t.Fatalf("campaign list with wrong key: %d", got)
+	if got := call("GET", "/api/v1/campaign/", "wrong", "").Code; got != http.StatusUnauthorized {
+		t.Fatalf("campaign list with unknown session: %d", got)
 	}
-	created := call("POST", "/api/v1/campaign/", "Bearer test-key", `{"name":"Campaign A"}`)
+	created := call("POST", "/api/v1/campaign/", owner, `{"name":"Campaign A"}`)
 	if created.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", created.Code, created.Body.String())
 	}
@@ -90,22 +161,38 @@ func TestCampaignFeedbackFlow(t *testing.T) {
 	defer db.Exec("DELETE FROM feedbacks WHERE campaign_id = ?", campaign.ID)
 	defer db.Exec("DELETE FROM campaigns WHERE id = ?", campaign.ID)
 	id := campaign.ID.String()
+
 	if got := call("GET", "/api/v1/campaign/"+id+"/public", "", "").Code; got != http.StatusOK {
 		t.Errorf("public campaign: %d", got)
 	}
 	if got := call("GET", "/api/v1/campaign/"+id, "", "").Code; got != http.StatusUnauthorized {
-		t.Errorf("private campaign: %d", got)
+		t.Errorf("private campaign without session: %d", got)
+	}
+	if got := call("GET", "/api/v1/campaign/"+id, owner, "").Code; got != http.StatusOK {
+		t.Errorf("private campaign as owner: %d", got)
 	}
 	if got := call("GET", "/api/v1/feedback/?campaign_id="+id, "", "").Code; got != http.StatusUnauthorized {
-		t.Errorf("feedback list: %d", got)
+		t.Errorf("feedback list without session: %d", got)
 	}
+
+	// Another signed-in creator must not see this campaign at all.
+	if got := call("GET", "/api/v1/campaign/"+id, other, "").Code; got != http.StatusNotFound {
+		t.Errorf("campaign as other creator: %d, want 404", got)
+	}
+	if got := call("GET", "/api/v1/feedback/?campaign_id="+id, other, "").Code; got != http.StatusNotFound {
+		t.Errorf("feedback as other creator: %d, want 404", got)
+	}
+	if body := call("GET", "/api/v1/campaign/", other, "").Body.String(); strings.Contains(body, id) {
+		t.Errorf("other creator's list includes the campaign: %s", body)
+	}
+
 	for _, text := range []string{"1 accepted text", "2 original abuse", "3 vague content", "4 rejected text"} {
 		w := call("POST", "/api/v1/feedback/", "", `{"campaign_id":"`+id+`","text":"`+text+`"}`)
 		if w.Code != http.StatusOK || w.Body.String() != `{"sent":true}` {
 			t.Fatalf("submit %q: %d %s", text, w.Code, w.Body.String())
 		}
 	}
-	listed := call("GET", "/api/v1/feedback/?campaign_id="+id, "Bearer test-key", "")
+	listed := call("GET", "/api/v1/feedback/?campaign_id="+id, owner, "")
 	if listed.Code != http.StatusOK {
 		t.Fatalf("list: %d %s", listed.Code, listed.Body.String())
 	}
@@ -125,7 +212,7 @@ func TestCampaignFeedbackFlow(t *testing.T) {
 	if !seen["1 accepted text"] || !seen["Clean rewrite"] {
 		t.Errorf("wrong saved text: %+v", feedback)
 	}
-	campaigns := call("GET", "/api/v1/campaign/", "Bearer test-key", "")
+	campaigns := call("GET", "/api/v1/campaign/", owner, "")
 	if campaigns.Code != http.StatusOK {
 		t.Fatalf("campaign list: %d %s", campaigns.Code, campaigns.Body.String())
 	}
@@ -154,5 +241,16 @@ func TestCampaignFeedbackFlow(t *testing.T) {
 	}
 	if got := call("POST", "/api/v1/feedback/", "", `{"campaign_id":"`+missing+`","text":"valid feedback text"}`).Code; got != http.StatusNotFound {
 		t.Errorf("unknown feedback campaign: %d", got)
+	}
+
+	// Signing out kills that session only.
+	if got := call("POST", "/api/v1/auth/logout", owner, "").Code; got != http.StatusNoContent {
+		t.Fatalf("logout: %d", got)
+	}
+	if got := call("GET", "/api/v1/auth/me", owner, "").Code; got != http.StatusUnauthorized {
+		t.Errorf("me after logout: %d, want 401", got)
+	}
+	if got := call("GET", "/api/v1/auth/me", ownerAgain, "").Code; got != http.StatusOK {
+		t.Errorf("other session after logout: %d, want 200", got)
 	}
 }

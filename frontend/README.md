@@ -38,6 +38,12 @@ bun run build
 The Go service owns campaigns, feedback, and classification. The Next.js server
 calls it for the dashboard and forwards public submissions.
 
-Set `API_URL` to the Go backend's URL as seen from the Next.js server. It defaults to `http://localhost:8080` for local development. Campaign and feedback pages load data in the browser through same-origin Next.js API routes. Those routes add the temporary `Bearer test-key` header only for protected backend calls. The key must not go in a `NEXT_PUBLIC_*` variable.
+Copy `.env.example` to `.env.local` and set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. The client ID must match the backend's `GOOGLE_CLIENT_ID`. Restart `bun dev` after changing them.
 
-`/c` lists campaigns and creates new ones. `/c/<campaign-id>` shows saved feedback and links to the public `/f/c/<campaign-id>` collection page. Anyone who can open the dashboard pages can read their contents during this test. The collection page shows “sent” immediately when a valid message is submitted, then sends it in the background. It does not check the API result or retry, so the message can be shown even when no feedback was saved.
+Set `API_URL` to the Go backend's URL as seen from the Next.js server. It defaults to `http://localhost:8080` for local development.
+
+Creators sign in at `/login`. The button links to `/api/auth/google/start`, which sends the browser to Google. Google returns to `/api/auth/google/callback` with a one-time code; that route trades the code with Google for an ID token (this needs the client secret, so it happens on the server), has the Go API verify it, and stores the resulting session token in an http-only `tbt_session` cookie. Browser code never sees the token. A random `state` value in a short-lived cookie makes sure the sign-in started on this site.
+
+Campaign and feedback pages load data through same-origin Next.js API routes, which forward the token as `Authorization: Bearer <token>` on protected backend calls. `src/proxy.ts` sends visitors without the cookie to `/login` from every page except `/login` itself and the public `/f/...` collection pages. If the API rejects an old cookie, the page redirects to `/login` too. `/` redirects to `/c`.
+
+`/c` lists your campaigns and creates new ones. `/c/<campaign-id>` shows saved feedback and links to the public `/f/c/<campaign-id>` collection page. You only see campaigns you created. The collection page shows “sent” immediately when a valid message is submitted, then sends it in the background. It does not check the API result or retry, so the message can be shown even when no feedback was saved.

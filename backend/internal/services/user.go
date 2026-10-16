@@ -39,7 +39,15 @@ func (s *UserService) EnsureUser(ctx context.Context, googleSubject, email, name
 		return models.User{}, fmt.Errorf("upserting user: %w", err)
 	}
 
-	return user, nil
+	// On a returning user Postgres keeps the existing row's id, but GORM
+	// leaves the id BeforeCreate just generated on the struct. Read the row
+	// back so the caller gets the id that is actually stored.
+	var saved models.User
+	if err := s.db.WithContext(ctx).First(&saved, "google_subject = ?", googleSubject).Error; err != nil {
+		return models.User{}, fmt.Errorf("reading user: %w", err)
+	}
+
+	return saved, nil
 }
 
 func (s *UserService) GetUser(ctx context.Context, id uuid.UUID) (models.User, error) {
@@ -57,6 +65,6 @@ func (s *UserService) GetUser(ctx context.Context, id uuid.UUID) (models.User, e
 }
 
 type SearchParams struct {
-	Limit int
+	Limit  int
 	Offset int
 }

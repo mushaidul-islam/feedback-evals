@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/mushaidul/truth-be-told/backend/internal/middleware"
 	"github.com/mushaidul/truth-be-told/backend/internal/models"
 	"github.com/mushaidul/truth-be-told/backend/internal/services"
 	"github.com/mushaidul/truth-be-told/backend/pkg/utils"
@@ -47,7 +48,8 @@ func (h *CampaignHandler) Create(w http.ResponseWriter, r *http.Request) {
 		utils.Error(w, r, http.StatusBadRequest, utils.CodeInvalidArgument, "Campaign name is required.")
 		return
 	}
-	c, err := h.service.CreateCampaign(r.Context(), services.CreateCampaignInput{Name: strings.TrimSpace(input.Name)})
+	userID, _ := middleware.UserID(r.Context())
+	c, err := h.service.CreateCampaign(r.Context(), services.CreateCampaignInput{UserID: userID, Name: strings.TrimSpace(input.Name)})
 	if err != nil {
 		utils.Error(w, r, http.StatusInternalServerError, utils.CodeInternal, "Could not create campaign.")
 		return
@@ -56,7 +58,8 @@ func (h *CampaignHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CampaignHandler) List(w http.ResponseWriter, r *http.Request) {
-	campaigns, err := h.service.ListCampaigns(r.Context())
+	userID, _ := middleware.UserID(r.Context())
+	campaigns, err := h.service.ListCampaigns(r.Context(), userID)
 	if err != nil {
 		utils.Error(w, r, http.StatusInternalServerError, utils.CodeInternal, "Could not list campaigns.")
 		return
@@ -68,12 +71,31 @@ func (h *CampaignHandler) List(w http.ResponseWriter, r *http.Request) {
 	utils.JSON(w, http.StatusOK, result)
 }
 
+// Get returns one of the signed-in creator's campaigns.
 func (h *CampaignHandler) Get(w http.ResponseWriter, r *http.Request) {
 	id, ok := campaignID(w, r)
 	if !ok {
 		return
 	}
-	c, err := h.service.GetCampaign(r.Context(), id)
+	userID, _ := middleware.UserID(r.Context())
+	h.respond(w, r, func() (models.Campaign, error) {
+		return h.service.GetOwnedCampaign(r.Context(), id, userID)
+	})
+}
+
+// GetPublic returns any campaign's public fields, for the collection page.
+func (h *CampaignHandler) GetPublic(w http.ResponseWriter, r *http.Request) {
+	id, ok := campaignID(w, r)
+	if !ok {
+		return
+	}
+	h.respond(w, r, func() (models.Campaign, error) {
+		return h.service.GetCampaign(r.Context(), id)
+	})
+}
+
+func (h *CampaignHandler) respond(w http.ResponseWriter, r *http.Request, load func() (models.Campaign, error)) {
+	c, err := load()
 	if errors.Is(err, services.ErrCampaignNotFound) {
 		utils.Error(w, r, http.StatusNotFound, utils.CodeNotFound, "Campaign not found.")
 		return
