@@ -1,5 +1,4 @@
 import 'server-only';
-
 import { cookies } from 'next/headers';
 
 import { SESSION_COOKIE } from './auth-cookie';

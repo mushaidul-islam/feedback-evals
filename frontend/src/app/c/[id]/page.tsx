@@ -4,7 +4,10 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { CampaignPreview } from '@/components/campaign-preview';
+import { ShareDialog } from '@/components/share-dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Campaign, Feedback } from '@/lib/api-types';
 
@@ -14,10 +17,12 @@ export default function CampaignDetailPage() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [feedback, setFeedback] = useState<Feedback[]>([]);
   const [error, setError] = useState('');
+  const [share, setShare] = useState<Feedback | 'campaign' | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     setCampaign(null);
+    setShare(null);
     setError('');
     Promise.all([
       fetch(`/api/campaign/${encodeURIComponent(id)}`, { signal: controller.signal }),
@@ -50,7 +55,7 @@ export default function CampaignDetailPage() {
   }, [id, router]);
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8 sm:py-16">
+    <main className="mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 lg:py-12">
       <Link href="/c" className="font-head text-sm uppercase underline">
         ← All campaigns
       </Link>
@@ -62,37 +67,88 @@ export default function CampaignDetailPage() {
       {!campaign && !error && <p className="mt-8 text-lg">Loading campaign…</p>}
       {campaign && (
         <>
-          <h1 className="font-head mt-8 text-5xl break-words uppercase sm:text-7xl">
-            {campaign.name}
-          </h1>
-          <p className="mt-4 text-lg">
-            {feedback.length} {feedback.length === 1 ? 'response' : 'responses'} · Created{' '}
-            {new Date(campaign.created_at).toLocaleDateString()}
-          </p>
-          <a
-            href={`/f/c/${campaign.id}`}
-            className="font-head bg-primary mt-5 inline-block border-2 border-black px-4 py-3 shadow-md hover:-translate-y-1"
+          <header className="mt-10 mb-10 sm:mt-14 sm:mb-12">
+            <p className="font-head mb-5 text-sm tracking-widest uppercase">
+              Truth Be Told / Your campaign
+            </p>
+            <h1 className="font-head max-w-4xl text-4xl leading-[1.08] tracking-tight break-words sm:text-6xl lg:text-7xl">
+              <span className="bg-primary box-decoration-clone px-1">{campaign.name}</span>
+            </h1>
+            <p className="text-muted-foreground mt-5 text-base">
+              {feedback.length} {feedback.length === 1 ? 'response' : 'responses'} · Created{' '}
+              {new Date(campaign.created_at).toLocaleDateString()}
+            </p>
+            <div className="mt-6 flex flex-wrap gap-4">
+              <Button onClick={() => setShare('campaign')}>Share campaign</Button>
+              <Link href={`/f/c/${campaign.id}`} className={buttonVariants({ variant: 'outline' })}>
+                Open collection page →
+              </Link>
+            </div>
+          </header>
+          <div
+            className={
+              campaign.content
+                ? 'grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-12'
+                : 'max-w-3xl'
+            }
           >
-            Open collection page →
-          </a>
-          <h2 className="font-head mt-14 mb-6 text-3xl uppercase">Feedback</h2>
-          {feedback.length === 0 && (
-            <p>No feedback yet. Share the collection page to invite responses.</p>
-          )}
-          <div className="grid gap-5">
-            {feedback.map((item) => (
-              <Card key={item.id} className="bg-white">
-                <CardHeader>
-                  <CardTitle className="font-mono text-sm">
-                    {new Date(item.created_at).toLocaleString()}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-lg break-words whitespace-pre-wrap">{item.text}</p>
-                </CardContent>
-              </Card>
-            ))}
+            {campaign.content && (
+              <CampaignPreview key={campaign.content.url} content={campaign.content} />
+            )}
+            <section aria-label="Received feedback" className="min-w-0">
+              <div className="mb-6 flex items-center justify-between gap-4 border-b-2 border-black pb-4">
+                <h2 className="font-head text-3xl">Feedback</h2>
+                <span className="font-head bg-primary grid size-10 place-items-center border-2 border-black">
+                  {feedback.length}
+                </span>
+              </div>
+              {feedback.length === 0 && (
+                <Card className="bg-white">
+                  <CardContent className="py-8">
+                    <p className="font-head text-2xl">The floor is open.</p>
+                    <p className="mt-3 text-base">
+                      No feedback yet. Share your campaign to get the conversation started.
+                    </p>
+                    <Button className="mt-6" onClick={() => setShare('campaign')}>
+                      Create a share card
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+              <div className="grid gap-6">
+                {feedback.map((item) => (
+                  <Card key={item.id} className="min-w-0 bg-white">
+                    <CardHeader>
+                      <CardTitle className="font-mono text-sm">
+                        {new Date(item.created_at).toLocaleString()}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-xl leading-relaxed break-words whitespace-pre-wrap">
+                        {item.text}
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-5"
+                        onClick={() => setShare(item)}
+                      >
+                        Share feedback
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </section>
           </div>
+          {share && (
+            <ShareDialog
+              key={share === 'campaign' ? 'campaign' : share.id}
+              campaign={campaign}
+              feedback={share === 'campaign' ? undefined : share}
+              onClose={() => setShare(null)}
+            />
+          )}
         </>
       )}
     </main>

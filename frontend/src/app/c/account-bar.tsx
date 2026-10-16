@@ -31,7 +31,7 @@ export function AccountBar() {
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      {user && <span className="font-mono text-sm">{user.email}</span>}
+      {user && <span className="min-w-0 font-mono text-sm break-all">{user.email}</span>}
       <Button variant="outline" size="sm" onClick={signOut} disabled={signingOut}>
         {signingOut ? 'Signing out…' : 'Sign out'}
       </Button>

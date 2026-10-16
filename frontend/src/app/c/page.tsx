@@ -39,63 +39,72 @@ export default function CampaignsPage() {
   }, [router]);
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8 sm:py-16">
+    <main className="mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 lg:py-12">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <p className="font-head text-sm tracking-widest uppercase">Truth Be Told / Campaigns</p>
         <AccountBar />
       </div>
-      <h1 className="font-head mt-4 text-5xl uppercase sm:text-7xl">Your campaigns</h1>
+      <h1 className="font-head mt-10 text-4xl leading-[1.08] tracking-tight sm:mt-14 sm:text-6xl lg:text-7xl">
+        <span className="bg-primary box-decoration-clone px-1">Your campaigns</span>
+      </h1>
       <p className="mt-4 max-w-2xl text-lg">
         Create a feedback link, then open a campaign to see what people sent.
       </p>
-      <Card className="bg-accent mt-10">
-        <CardHeader>
-          <CardTitle className="font-head text-2xl uppercase">Start a campaign</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <CreateForm />
-        </CardContent>
-      </Card>
-      <div className="mt-12 grid gap-6 md:grid-cols-2">
-        {campaigns?.map((campaign, index) => (
-          <Link
-            key={campaign.id}
-            href={`/c/${campaign.id}`}
-            className="focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-black"
-          >
-            <Card
-              className={
-                index % 2
-                  ? 'bg-primary h-full transition-transform hover:-translate-y-1'
-                  : 'h-full bg-white transition-transform hover:-translate-y-1'
-              }
-            >
-              <CardHeader>
-                <CardTitle className="font-head text-2xl break-words uppercase">
-                  {campaign.name}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="font-mono text-sm">
-                  Created {new Date(campaign.created_at).toLocaleDateString()}
-                </p>
-                <p className="font-head mt-5 uppercase">
-                  {campaign.feedback_count ?? 0} responses · View feedback →
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+      <div className="mt-10 grid items-start gap-8 lg:mt-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-12">
+        <Card className="bg-accent min-w-0 lg:sticky lg:top-8">
+          <CardHeader>
+            <CardTitle className="font-head text-2xl uppercase">Start a campaign</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CreateForm />
+          </CardContent>
+        </Card>
+        <section aria-label="Your campaigns" className="min-w-0">
+          <p className="font-head mb-6 border-b-2 border-black pb-4 text-sm tracking-widest uppercase">
+            Your feedback starts here.
+          </p>
+          <div className="grid gap-6">
+            {campaigns?.map((campaign, index) => (
+              <Link
+                key={campaign.id}
+                href={`/c/${campaign.id}`}
+                className="focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-black"
+              >
+                <Card
+                  className={
+                    index % 2
+                      ? 'bg-primary h-full transition-transform hover:-translate-y-1'
+                      : 'h-full bg-white transition-transform hover:-translate-y-1'
+                  }
+                >
+                  <CardHeader>
+                    <CardTitle className="font-head text-2xl break-words">
+                      {campaign.name}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="font-mono text-sm">
+                      Created {new Date(campaign.created_at).toLocaleDateString()}
+                    </p>
+                    <p className="font-head mt-5 uppercase">
+                      {campaign.feedback_count ?? 0} responses · View feedback →
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+          {campaigns === null && !error && <p className="mt-12 text-lg">Loading campaigns…</p>}
+          {error && (
+            <Alert status="error" className="mt-12">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          {campaigns?.length === 0 && (
+            <p className="mt-12 text-lg">No campaigns yet. Create one above to get started.</p>
+          )}
+        </section>
       </div>
-      {campaigns === null && !error && <p className="mt-12 text-lg">Loading campaigns…</p>}
-      {error && (
-        <Alert status="error" className="mt-12">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      {campaigns?.length === 0 && (
-        <p className="mt-12 text-lg">No campaigns yet. Create one above to get started.</p>
-      )}
     </main>
   );
 }

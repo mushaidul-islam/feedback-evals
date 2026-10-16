@@ -10,22 +10,27 @@
     "format": "oxfmt --write src package.json next.config.ts postcss.config.mjs",
     "format:check": "oxfmt --check src package.json next.config.ts postcss.config.mjs",
     "typecheck": "next typegen && tsc --noEmit",
-    "check": "bun run format:check && bun run lint && bun run typecheck"
+    "check": "bun run format:check && bun run lint && bun run typecheck",
+    "test:ui": "playwright test tests/campaign.spec.ts tests/collection.spec.ts tests/sharing.spec.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "next": "16.3.1",
+    "qrcode": "^1.5.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "jsqr": "^1.4.0",
     "oxfmt": "^0.63.0",
     "oxlint": "^1.78.0",
     "tailwindcss": "^4",
