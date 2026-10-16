@@ -61,11 +61,12 @@ func (s *AuthService) SignInWithGoogle(ctx context.Context, credential string) (
 	email, _ := payload.Claims["email"].(string)
 	verified, _ := payload.Claims["email_verified"].(bool)
 	name, _ := payload.Claims["name"].(string)
+	picture, _ := payload.Claims["picture"].(string)
 	if payload.Subject == "" || email == "" || !verified {
 		return SignInResult{}, ErrInvalidCredential
 	}
 
-	user, err := s.users.EnsureUser(ctx, payload.Subject, email, name)
+	user, err := s.users.EnsureUser(ctx, payload.Subject, email, name, picture)
 	if err != nil {
 		return SignInResult{}, err
 	}

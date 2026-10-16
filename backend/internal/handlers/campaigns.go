@@ -21,14 +21,19 @@ func NewCampaignHandler(service *services.CampaignService) *CampaignHandler {
 }
 
 type campaignResponse struct {
-	ID            uuid.UUID `json:"id"`
-	Name          string    `json:"name"`
-	CreatedAt     time.Time `json:"created_at"`
-	FeedbackCount int64     `json:"feedback_count,omitempty"`
+	ID             uuid.UUID                 `json:"id"`
+	Name           string                    `json:"name"`
+	CreatedAt      time.Time                 `json:"created_at"`
+	FeedbackCount  int64                     `json:"feedback_count,omitempty"`
+	CreatorName    string                    `json:"creator_name,omitempty"`
+	CreatorPicture string                    `json:"creator_picture,omitempty"`
+	ContentURL     string                    `json:"content_url,omitempty"`
+	Content        *services.CampaignContent `json:"content,omitempty"`
 }
 
 func campaignView(c models.Campaign) campaignResponse {
-	return campaignResponse{ID: c.ID, Name: c.Name, CreatedAt: c.CreatedAt}
+	content, _ := services.ParseCampaignContent(c.ContentURL)
+	return campaignResponse{ID: c.ID, Name: c.Name, CreatedAt: c.CreatedAt, ContentURL: c.ContentURL, Content: content}
 }
 
 func campaignID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
@@ -42,14 +47,19 @@ func campaignID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 
 func (h *CampaignHandler) Create(w http.ResponseWriter, r *http.Request) {
 	input, err := utils.Decode[struct {
-		Name string `json:"name"`
+		Name       string `json:"name"`
+		ContentURL string `json:"content_url"`
 	}](r)
 	if err != nil || strings.TrimSpace(input.Name) == "" {
 		utils.Error(w, r, http.StatusBadRequest, utils.CodeInvalidArgument, "Campaign name is required.")
 		return
 	}
 	userID, _ := middleware.UserID(r.Context())
-	c, err := h.service.CreateCampaign(r.Context(), services.CreateCampaignInput{UserID: userID, Name: strings.TrimSpace(input.Name)})
+	c, err := h.service.CreateCampaign(r.Context(), services.CreateCampaignInput{UserID: userID, Name: strings.TrimSpace(input.Name), ContentURL: input.ContentURL})
+	if errors.Is(err, services.ErrInvalidContentURL) {
+		utils.Error(w, r, http.StatusBadRequest, utils.CodeInvalidArgument, err.Error())
+		return
+	}
 	if err != nil {
 		utils.Error(w, r, http.StatusInternalServerError, utils.CodeInternal, "Could not create campaign.")
 		return
@@ -78,8 +88,9 @@ func (h *CampaignHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID, _ := middleware.UserID(r.Context())
-	h.respond(w, r, func() (models.Campaign, error) {
-		return h.service.GetOwnedCampaign(r.Context(), id, userID)
+	h.respond(w, r, func() (campaignResponse, error) {
+		c, err := h.service.GetOwnedCampaign(r.Context(), id, userID)
+		return campaignView(c), err
 	})
 }
 
@@ -89,12 +100,16 @@ func (h *CampaignHandler) GetPublic(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	h.respond(w, r, func() (models.Campaign, error) {
-		return h.service.GetCampaign(r.Context(), id)
+	h.respond(w, r, func() (campaignResponse, error) {
+		c, err := h.service.GetPublicCampaign(r.Context(), id)
+		response := campaignView(c.Campaign)
+		response.CreatorName = strings.TrimSpace(c.CreatorName)
+		response.CreatorPicture = c.CreatorPicture
+		return response, err
 	})
 }
 
-func (h *CampaignHandler) respond(w http.ResponseWriter, r *http.Request, load func() (models.Campaign, error)) {
+func (h *CampaignHandler) respond(w http.ResponseWriter, r *http.Request, load func() (campaignResponse, error)) {
 	c, err := load()
 	if errors.Is(err, services.ErrCampaignNotFound) {
 		utils.Error(w, r, http.StatusNotFound, utils.CodeNotFound, "Campaign not found.")
@@ -104,5 +119,5 @@ func (h *CampaignHandler) respond(w http.ResponseWriter, r *http.Request, load f
 		utils.Error(w, r, http.StatusInternalServerError, utils.CodeInternal, "Could not load campaign.")
 		return
 	}
-	utils.JSON(w, http.StatusOK, campaignView(c))
+	utils.JSON(w, http.StatusOK, c)
 }

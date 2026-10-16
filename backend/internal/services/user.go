@@ -22,17 +22,18 @@ func NewUserService(db *gorm.DB) *UserService {
 	return &UserService{db: db}
 }
 
-func (s *UserService) EnsureUser(ctx context.Context, googleSubject, email, name string) (models.User, error) {
+func (s *UserService) EnsureUser(ctx context.Context, googleSubject, email, name, picture string) (models.User, error) {
 	user := models.User{
 		GoogleSubject: googleSubject,
 		Email:         email,
 		Name:          name,
+		Picture:       picture,
 	}
 
 	err := s.db.WithContext(ctx).
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "google_subject"}},
-			DoUpdates: clause.AssignmentColumns([]string{"email", "name", "updated_at"}),
+			DoUpdates: clause.AssignmentColumns([]string{"email", "name", "picture", "updated_at"}),
 		}).
 		Create(&user).Error
 	if err != nil {

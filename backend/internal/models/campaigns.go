@@ -15,10 +15,11 @@ type Campaign struct {
 	// UserID is the creator who owns the campaign. Nullable only because
 	// campaigns made before sign-in existed have no owner; those rows stay in
 	// the table but no one sees them.
-	UserID    uuid.UUID `gorm:"type:uuid;index"`
-	Name      string    `gorm:"not null;default:''"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	UserID     uuid.UUID `gorm:"type:uuid;index"`
+	Name       string    `gorm:"not null;default:''"`
+	ContentURL string    `gorm:"not null;default:''"`
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 // BeforeCreate assigns the id if the caller did not.

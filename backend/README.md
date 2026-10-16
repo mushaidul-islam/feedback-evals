@@ -177,6 +177,30 @@ campaign returns 404, not 403, so ids cannot be probed to learn what exists.
 Campaigns created before sign-in existed have no owner and are no longer
 visible to anyone.
 
+Campaign creation accepts an optional `content_url` alongside `name`. The URL
+must be an HTTPS post or video link from YouTube, X, TikTok, LinkedIn,
+Facebook, or Instagram. Invalid URLs return 400. Content links are stored
+on the campaign, and individual campaign responses include a `content`
+object with the provider, original URL, and an embed URL where available.
+The public response also includes `creator_name` when the creator has a name.
+The public response excludes email, Google subject, session credentials,
+and the creator's internal user ID.
+
+Restart the API with automatic migration enabled to add the `content_url`
+column to existing development databases. URL parsing uses a fixed list of
+provider hosts and recognized post paths. It constructs embed URLs without
+fetching remote pages or storing third-party HTML. Short TikTok share links
+have an original-link fallback rather than being resolved by the API.
+Embeds are for the person submitting feedback; the classifier still reads
+only the campaign name and submitted text.
+
+`internal/services/campaign_content_test.go` covers supported link forms and
+rejected schemes, credentials, ports, hosts, and non-post paths. The existing
+campaign integration test also covers link persistence, invalid-link
+rejection, text-only campaigns, creator names, and public response fields.
+These checks pass against a disposable local PostgreSQL database. The integration test requires
+`TEST_DATABASE_URL` pointing to a disposable PostgreSQL database.
+
 Run `go test ./...` for unit checks. Set `TEST_DATABASE_URL` to a disposable
 Postgres database URL to also run the campaign and feedback integration test.
 The test creates and removes its own campaign and feedback rows.
@@ -315,3 +339,5 @@ Trigger.dev. This directory contradicts that — an unresolved divergence, not a
 oversight (the spec also still says Vite while `frontend/` is Next.js). Worth
 deciding before this takes real traffic. The rest of the spec — state machine,
 data model, abuse rules — is unaffected by the language choice.
+
+Google sign-in also stores the optional `picture` claim and refreshes it on subsequent sign-ins. Public campaign responses include `creator_picture` when present, alongside `creator_name`; private account fields remain excluded. The existing automatic migration adds the `users.picture` column. Accounts without a photo continue to work and the frontend displays initials. The campaign integration test verifies the picture travels from the verified Google claims through storage to the public response.

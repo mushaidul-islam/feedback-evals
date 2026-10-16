@@ -51,21 +51,51 @@ func (s *CampaignService) first(ctx context.Context, query string, args ...any) 
 }
 
 type CreateCampaignInput struct {
-	UserID uuid.UUID
-	Name   string
+	UserID     uuid.UUID
+	Name       string
+	ContentURL string
 }
 
 func (s *CampaignService) CreateCampaign(ctx context.Context, input CreateCampaignInput) (models.Campaign, error) {
+	content, err := ParseCampaignContent(input.ContentURL)
+	if err != nil {
+		return models.Campaign{}, err
+	}
 	campaign := models.Campaign{
 		UserID: input.UserID,
 		Name:   input.Name,
 	}
+	if content != nil {
+		campaign.ContentURL = content.URL
+	}
 
-	err := s.db.WithContext(ctx).Create(&campaign).Error
+	err = s.db.WithContext(ctx).Create(&campaign).Error
 	if err != nil {
 		return models.Campaign{}, fmt.Errorf("creating campaign: %w", err)
 	}
 
+	return campaign, nil
+}
+
+type PublicCampaign struct {
+	models.Campaign
+	CreatorName    string
+	CreatorPicture string
+}
+
+// GetPublicCampaign selects the creator's name without loading private account fields.
+func (s *CampaignService) GetPublicCampaign(ctx context.Context, id uuid.UUID) (PublicCampaign, error) {
+	var campaign PublicCampaign
+	err := s.db.WithContext(ctx).Model(&models.Campaign{}).
+		Select("campaigns.*, COALESCE(users.name, '') AS creator_name, COALESCE(users.picture, '') AS creator_picture").
+		Joins("LEFT JOIN users ON users.id = campaigns.user_id").
+		Where("campaigns.id = ?", id).Take(&campaign).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return PublicCampaign{}, ErrCampaignNotFound
+	}
+	if err != nil {
+		return PublicCampaign{}, fmt.Errorf("reading public campaign: %w", err)
+	}
 	return campaign, nil
 }
 

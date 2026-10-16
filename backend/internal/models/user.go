@@ -15,6 +15,7 @@ type User struct {
 	GoogleSubject string    `gorm:"uniqueIndex;not null"`
 	Email         string    `gorm:"not null"`
 	Name          string    `gorm:"not null;default:''"`
+	Picture       string    `gorm:"not null;default:''"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }

@@ -34,6 +34,7 @@ func fakeGoogle(_ context.Context, credential, audience string) (*idtoken.Payloa
 			"email":          subject + "@example.com",
 			"email_verified": true,
 			"name":           "Test " + subject,
+			"picture":        "https://lh3.googleusercontent.com/test-avatar",
 		},
 	}, nil
 }
@@ -148,7 +149,10 @@ func TestCampaignFeedbackFlow(t *testing.T) {
 	if got := call("GET", "/api/v1/campaign/", "wrong", "").Code; got != http.StatusUnauthorized {
 		t.Fatalf("campaign list with unknown session: %d", got)
 	}
-	created := call("POST", "/api/v1/campaign/", owner, `{"name":"Campaign A"}`)
+	if got := call("POST", "/api/v1/campaign/", owner, `{"name":"Invalid link","content_url":"javascript:alert(1)"}`).Code; got != http.StatusBadRequest {
+		t.Fatalf("invalid campaign content: %d, want 400", got)
+	}
+	created := call("POST", "/api/v1/campaign/", owner, `{"name":"Campaign A","content_url":"https://youtu.be/dQw4w9WgXcQ"}`)
 	if created.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", created.Code, created.Body.String())
 	}
@@ -164,6 +168,73 @@ func TestCampaignFeedbackFlow(t *testing.T) {
 
 	if got := call("GET", "/api/v1/campaign/"+id+"/public", "", "").Code; got != http.StatusOK {
 		t.Errorf("public campaign: %d", got)
+	}
+	public := call("GET", "/api/v1/campaign/"+id+"/public", "", "")
+	var publicBody struct {
+		CreatorName    string `json:"creator_name"`
+		CreatorPicture string `json:"creator_picture"`
+		ContentURL     string `json:"content_url"`
+		Content        struct {
+			Provider string `json:"provider"`
+			EmbedURL string `json:"embed_url"`
+		} `json:"content"`
+	}
+	if err := json.Unmarshal(public.Body.Bytes(), &publicBody); err != nil {
+		t.Fatal(err)
+	}
+	if publicBody.CreatorPicture != "https://lh3.googleusercontent.com/test-avatar" {
+		t.Errorf("missing creator picture: %+v", publicBody)
+	}
+	if publicBody.CreatorName != "Test "+ownerSubject || publicBody.ContentURL != "https://youtu.be/dQw4w9WgXcQ" || publicBody.Content.EmbedURL != "https://www.youtube.com/embed/dQw4w9WgXcQ" {
+		t.Errorf("public campaign did not retain creator and content: %+v", publicBody)
+	}
+	for _, privateField := range []string{"email", "google_subject", "user_id", "token"} {
+		var fields map[string]json.RawMessage
+		_ = json.Unmarshal(public.Body.Bytes(), &fields)
+		if _, found := fields[privateField]; found {
+			t.Errorf("public campaign exposes %s", privateField)
+		}
+	}
+	if err := db.Exec("UPDATE users SET name = '', picture = '' WHERE id = ?", ownerID).Error; err != nil {
+		t.Fatal(err)
+	}
+	unnamed := call("GET", "/api/v1/campaign/"+id+"/public", "", "")
+	var unnamedBody struct {
+		CreatorName    string `json:"creator_name"`
+		CreatorPicture string `json:"creator_picture"`
+	}
+	if err := json.Unmarshal(unnamed.Body.Bytes(), &unnamedBody); err != nil {
+		t.Fatal(err)
+	}
+	if unnamed.Code != http.StatusOK || unnamedBody.CreatorName != "" || unnamedBody.CreatorPicture != "" {
+		t.Fatalf("campaign without creator name: %d %s", unnamed.Code, unnamed.Body.String())
+	}
+	// A later Google sign-in refreshes the photo for an existing account.
+	signIn(ownerSubject)
+	refreshed := call("GET", "/api/v1/campaign/"+id+"/public", "", "")
+	var refreshedBody struct {
+		CreatorPicture string `json:"creator_picture"`
+	}
+	if err := json.Unmarshal(refreshed.Body.Bytes(), &refreshedBody); err != nil {
+		t.Fatal(err)
+	}
+	if refreshedBody.CreatorPicture != "https://lh3.googleusercontent.com/test-avatar" {
+		t.Errorf("returning sign-in did not refresh picture: %s", refreshed.Body.String())
+	}
+	textOnly := call("POST", "/api/v1/campaign/", owner, `{"name":"Text-only campaign"}`)
+	if textOnly.Code != http.StatusCreated {
+		t.Fatalf("campaign without content: %d %s", textOnly.Code, textOnly.Body.String())
+	}
+	var textOnlyBody struct {
+		ID      uuid.UUID                 `json:"id"`
+		Content *services.CampaignContent `json:"content"`
+	}
+	if err := json.Unmarshal(textOnly.Body.Bytes(), &textOnlyBody); err != nil {
+		t.Fatal(err)
+	}
+	defer db.Exec("DELETE FROM campaigns WHERE id = ?", textOnlyBody.ID)
+	if textOnlyBody.Content != nil {
+		t.Error("text-only campaign unexpectedly has an embed")
 	}
 	if got := call("GET", "/api/v1/campaign/"+id, "", "").Code; got != http.StatusUnauthorized {
 		t.Errorf("private campaign without session: %d", got)
