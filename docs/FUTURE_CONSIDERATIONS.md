@@ -424,3 +424,39 @@ When considering any future feature:
 4. Choose the smallest additional component.
 5. Add evaluation and rollback before production.
 6. Remove the component if it does not produce a measured improvement.
+
+## 21. Campaign media and preview backlog
+
+Added 17 October 2026. Planned ideas only; neither feature is implemented.
+
+### Desktop snapshots for unreliable embeds
+
+Problem: LinkedIn and other providers can show app prompts or restricted previews
+on mobile, preventing visitors from seeing the content they are giving feedback on.
+
+- Try rendering a public embed in a desktop browser and capturing its content.
+- Generate once per campaign, then reuse the snapshot as the mobile preview.
+- Keep an original-source link and an option to open the interactive embed.
+- Start with one LinkedIn proof of concept. Captures can fail or become outdated;
+  retain a usable fallback and consider an explicit refresh action.
+- Storage remains undecided: a reusable screenshot needs hosting too. If the
+  no-media-storage preference covers generated previews, use external storage;
+  otherwise explicitly agree on an exception for cached screenshots before building.
+
+### Externally hosted images and videos with a source link
+
+Problem: creators need to show their own media without depending on a social
+platform's embed or having this app host the original files.
+
+- Accept a publicly accessible image or video URL, plus a separate destination URL.
+- Display the image or video directly on the campaign's feedback page. An image
+  can open the destination; a video keeps its playback controls with a source link.
+- Store the URLs and necessary metadata, not the original media files.
+- Treat local-file uploads as a separate, optional path: files must be uploaded
+  somewhere before other visitors can view them. To avoid hosting them ourselves,
+  upload directly to creator-owned storage or an external hosting account.
+- Choose an upload destination and ownership model before implementing a file
+  picker. Do not promise persistent uploads with no storage provider.
+- Confirm public embedding and playback work; an ordinary webpage URL is not
+  necessarily a direct media URL. Preserve a source-link fallback if media expires,
+  is removed, or cannot load.
