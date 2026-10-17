@@ -1,0 +1,10 @@
+gcp_project_id = "your-google-cloud-project-id"
+vercel_team_id = "team_your-vercel-team-id"
+google_client_id = "your-existing-client-id.apps.googleusercontent.com"
+
+# Optional: backend resource prefix. Set before creating resources; keep stable afterward.
+# name        = "feedback-evals-aryan"
+# image_tag   = "initial"
+
+# Set secrets through TF_VAR_google_client_secret and TF_VAR_baseten_api_key.
+# Provider tokens use NEON_API_KEY and VERCEL_API_TOKEN.
