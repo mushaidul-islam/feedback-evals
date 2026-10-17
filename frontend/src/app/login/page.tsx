@@ -4,8 +4,7 @@ import { buttonVariants } from '@/components/ui/button';
 const ERRORS: Record<string, string> = {
   cancelled: 'Sign-in was cancelled.',
   failed: 'Could not sign you in. Please try again.',
-  config:
-    'Sign-in is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in frontend/.env.local and restart the dev server.',
+  config: 'Sign-in is unavailable right now. Please try again later.',
 };
 
 export default async function LoginPage({
@@ -22,14 +21,11 @@ export default async function LoginPage({
       <div className="mt-16 grid items-center gap-12 lg:mt-24 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className="min-w-0">
           <h1 className="font-head text-4xl leading-[1.08] tracking-tight break-words sm:text-6xl lg:text-7xl">
-            <span className="bg-primary box-decoration-clone px-1">
-              Honest words.
-              <br />A fresh perspective.
-            </span>
+            <span className="bg-primary box-decoration-clone px-1">Hear what people think.</span>
           </h1>
           <p className="mt-8 max-w-lg text-xl leading-relaxed">
-            Make room for what people really think. Ask a question, share your link, and hear them
-            out.
+            Share a question or something you’re working on. People can leave feedback without
+            giving their name.
           </p>
         </div>
         <section
@@ -38,8 +34,8 @@ export default async function LoginPage({
         >
           <h2 className="font-head text-3xl sm:text-4xl">Sign in</h2>
           <p className="mt-5 text-lg">
-            Create campaigns and read the feedback they collect. People giving feedback never need
-            an account.
+            Sign in to ask for feedback and read the replies. Anyone with your link can respond
+            without an account.
           </p>
           {/* A plain link prevents prefetch from starting sign-in. */}
           {/* oxlint-disable-next-line nextjs/no-html-link-for-pages */}

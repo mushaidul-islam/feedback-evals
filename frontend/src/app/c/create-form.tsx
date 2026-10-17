@@ -59,6 +59,7 @@ export function CreateForm() {
             required
             maxLength={200}
             placeholder="What would you like feedback on?"
+            aria-describedby="campaign-name-help"
             className="h-12 bg-white text-base"
           />
         </div>
@@ -73,6 +74,9 @@ export function CreateForm() {
           </Button>
         </div>
       </div>
+      <p id="campaign-name-help" className="text-muted-foreground -mt-2 text-sm">
+        For example, “How was my dancing?”
+      </p>
       <div>
         <label className="font-head mb-2 block text-sm uppercase" htmlFor="campaign-content">
           Content link (optional)

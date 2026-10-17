@@ -68,7 +68,7 @@ export default function CollectionPage() {
                 </Avatar>
                 <p className="min-w-0 text-lg leading-tight break-words sm:text-xl">
                   <span className="font-head">{creator}</span>
-                  <span className="mt-1 block text-sm">wants your honest feedback</span>
+                  <span className="mt-1 block text-sm">is asking for feedback</span>
                 </p>
               </div>
               <h1 className="font-head text-4xl leading-[1.08] tracking-tight break-words sm:text-6xl lg:text-7xl">
@@ -87,11 +87,12 @@ export default function CollectionPage() {
               )}
               <div className="min-w-0 lg:sticky lg:top-8">
                 <p className="font-head mb-3 text-sm tracking-widest uppercase">
-                  Your take. No name attached.
+                  What would you like them to know?
                 </p>
                 <FeedbackForm campaignId={campaign.id} />
                 <p className="text-muted-foreground mt-5 text-sm">
-                  Be honest. Be specific. Help them get better.
+                  Your name won’t be shared. A specific example can help them understand your
+                  feedback.
                 </p>
               </div>
             </div>

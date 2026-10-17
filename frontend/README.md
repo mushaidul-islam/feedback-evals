@@ -50,7 +50,7 @@ Campaign and feedback pages load data through same-origin Next.js API routes, wh
 
 `/c` lists your campaigns and creates new ones. `/c/<campaign-id>` shows saved feedback and links to the public `/f/c/<campaign-id>` collection page. You only see campaigns you created. The collection page shows “sent” immediately when a valid message is submitted, then sends it in the background. It does not check the API result or retry, so the message can be shown even when no feedback was saved.
 
-The creation form uses a 75/25 split for the campaign name and button from the small-screen breakpoint upward, and stacks them on narrower screens. The button keeps its size and position while creating. An optional content link accepts HTTPS post or video URLs from YouTube, X, TikTok, LinkedIn, Facebook, and Instagram. The public page shows the creator's Google display name followed by "wants feedback", then the campaign name and linked content. A missing display name uses "Someone".
+The creation form uses a 75/25 split for the campaign name and button from the small-screen breakpoint upward, and stacks them on narrower screens. The button keeps its size and position while creating. An optional content link accepts HTTPS post or video URLs from YouTube, X, TikTok, LinkedIn, Facebook, and Instagram. The public page shows the creator's Google display name followed by "is asking for feedback", then the campaign name and linked content. A missing display name uses "Someone".
 
 Embeds use the provider's player or widget. The original link is always available because private, removed, or restricted posts and browser settings can prevent an embed from loading. Short TikTok share links show the original link; use a full `/@username/video/id` or `/@username/photo/id` URL for an embedded player. LinkedIn supports public posts with an activity, share, or ugcPost identifier. No media files or pasted embed HTML are accepted. The feedback classifier still receives the campaign name and submitted feedback text, not the contents of the external post or video.
 
@@ -68,10 +68,24 @@ Instagram and X use their provider scripts so the provider can size the embed. Y
 
 Campaign detail, dashboard, and sign-in use the collection page’s highlighted display headings, cream background, black borders, and spacious desktop columns. The dashboard places creation alongside existing campaigns. Campaign detail places content alongside received feedback. `CampaignPreview` supplies the same mobile disclosure on both public and creator pages.
 
-The campaign’s “Share campaign” action and each response’s “Share feedback” action open an accessible preview dialog. Cards are generated locally with Canvas and the existing fonts; private feedback is not uploaded to an image service or exposed through a public feedback URL. Each PNG is 1080×1920, includes the selected text and a QR code to the public collection page, and can be downloaded. “Edit image text” affects only the exported image, not saved records. Text wraps and shrinks to fit; excessively long text produces an actionable error rather than being silently clipped.
+The campaign’s “Share campaign” action and each response’s “Share feedback” action open an accessible preview dialog. Cards are generated locally with Canvas and the existing fonts; private feedback is not uploaded to an image service or exposed through a public feedback URL. Each PNG is 1080×1920, includes the selected text and a QR code to the public collection page, and can be downloaded. Image text comes directly from the campaign or saved feedback and cannot be edited. Text wraps at a readable size; overflow ends with an ellipsis inside the image. Saved feedback is never truncated.
 
 Where the browser supports file sharing, a prepared PNG is passed directly to the system share menu on the next click, preserving user activation. The destination depends on installed apps and browser support. Cancelling does not download or publish anything. Unsupported or failed sharing retains download and copy-link actions. X and WhatsApp link composers are available; images must be attached manually there. Instagram/TikTok users can choose their app from the native menu or upload the downloaded card, then add a link sticker where supported. PNGs cannot contain clickable links.
 
 Collection URLs use the current site origin. On localhost, the dialog explains that links/QR codes will not work for other people; use a published HTTPS site for real mobile sharing. There are no hard-coded production domains, social credentials, or publishing calls.
 
-`tests/sharing.spec.ts` uses a real local campaign, owner session, and saved response. Set `TBT_TEST_SESSION` and `TBT_TEST_CAMPAIGN_ID` before running `bun run test:ui`. It checks desktop/mobile placement, modal focus, PNG dimensions, decoding the exported QR to the collection URL, clipboard copying, local-only edits, and narrow dashboard/sign-in layouts. Native share menus need a supported real device/browser; the PNG share and cancellation were checked in desktop Chrome. The suite does not publish to social accounts.
+`tests/sharing.spec.ts` uses a real local campaign, owner session, and saved response. Set `TBT_TEST_SESSION` and `TBT_TEST_CAMPAIGN_ID` before running `bun run test:ui`. It checks desktop/mobile placement, modal focus, PNG dimensions, decoding the exported QR to the collection URL, clipboard copying, removal of image text editing, long-feedback export without changing saved records, and narrow dashboard/sign-in layouts. Native share menus need a supported real device/browser; the PNG share and cancellation were checked in desktop Chrome. The suite does not publish to social accounts.
+
+UI copy uses a casual, restrained voice: full sentences for guidance, plain action
+labels, and no repeated slogan fragments. The campaign-name example remains visible
+below the input. Empty inboxes reuse the main sharing action rather than adding a
+second button.
+
+Share cards include a small source stamp when content is linked. YouTube cards use
+the video's public thumbnail through Next.js's built-in image optimizer, restricted
+to HTTPS `i.ytimg.com/vi/*/hqdefault.jpg` with redirects disabled. The iframe is not
+captured. Other platforms, missing images, or blocked/timed-out thumbnails use a
+source label; PNG downloads and QR codes still work. Only the public thumbnail is
+fetched by the server; feedback text continues to be drawn locally. The sharing
+regression checks inspect thumbnail pixels in the exported PNG and cover export
+when thumbnail loading is blocked.

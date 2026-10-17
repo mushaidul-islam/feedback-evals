@@ -61,7 +61,7 @@ export default function CampaignsPage() {
         </Card>
         <section aria-label="Your campaigns" className="min-w-0">
           <p className="font-head mb-6 border-b-2 border-black pb-4 text-sm tracking-widest uppercase">
-            Your feedback starts here.
+            Your links
           </p>
           <div className="grid gap-6">
             {campaigns?.map((campaign, index) => (
@@ -101,7 +101,7 @@ export default function CampaignsPage() {
             </Alert>
           )}
           {campaigns?.length === 0 && (
-            <p className="mt-12 text-lg">No campaigns yet. Create one above to get started.</p>
+            <p className="mt-12 text-lg">Your campaigns will appear here after you create one.</p>
           )}
         </section>
       </div>

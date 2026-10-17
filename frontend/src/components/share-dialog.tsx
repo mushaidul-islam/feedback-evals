@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import type { Campaign, Feedback } from '@/lib/api-types';
 import { createShareCard } from '@/lib/share-card';
 
@@ -18,7 +17,7 @@ export function ShareDialog({
   feedback?: Feedback;
   onClose: () => void;
 }) {
-  const [text, setText] = useState(feedback?.text ?? campaign.name);
+  const text = feedback?.text ?? campaign.name;
   const [image, setImage] = useState<{ url: string; file: File } | null>(null);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
@@ -27,8 +26,8 @@ export function ShareDialog({
   const url = `${window.location.origin}/f/c/${encodeURIComponent(campaign.id)}`;
   const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
   const shareText = feedback
-    ? `Here's feedback I received on “${campaign.name}”. Leave your own anonymous feedback:`
-    : `${campaign.name}\nLeave me honest, anonymous feedback.`;
+    ? `Here's feedback I received on “${campaign.name}”. You can leave feedback here:`
+    : `${campaign.name}\nYou can leave feedback anonymously.`;
   const xURL = `https://x.com/intent/tweet?${new URLSearchParams({ text: shareText, url })}`;
   const whatsappURL = `https://wa.me/?${new URLSearchParams({ text: `${shareText}\n${url}` })}`;
 
@@ -38,10 +37,10 @@ export function ShareDialog({
     setImage(null);
     setError('');
     if (!text.trim()) {
-      setError('Add some text for the image.');
+      setError('There is no text to share.');
       return;
     }
-    createShareCard(campaign.name, text, url, !!feedback)
+    createShareCard(campaign.name, text, url, !!feedback, campaign.content)
       .then((blob) => {
         if (cancelled) return;
         objectURL = URL.createObjectURL(blob);
@@ -62,7 +61,7 @@ export function ShareDialog({
       cancelled = true;
       if (objectURL) URL.revokeObjectURL(objectURL);
     };
-  }, [campaign.id, campaign.name, feedback, text, url]);
+  }, [campaign.id, campaign.name, campaign.content, feedback, text, url]);
 
   async function copyLink() {
     try {
@@ -71,7 +70,7 @@ export function ShareDialog({
     } catch {
       linkInput.current?.focus();
       linkInput.current?.select();
-      setStatus('Select and copy the collection link above.');
+      setStatus('Select and copy the feedback link above.');
     }
   }
 
@@ -83,7 +82,7 @@ export function ShareDialog({
       await navigator.share(
         withImage && image
           ? { files: [image.file], title: campaign.name }
-          : { title: campaign.name, text: 'Leave me honest, anonymous feedback.', url },
+          : { title: campaign.name, text: 'You can leave feedback anonymously.', url },
       );
       setStatus('Share sheet closed. You can share again or download the image.');
     } catch (cause) {
@@ -114,7 +113,7 @@ export function ShareDialog({
           {feedback ? 'Share this feedback' : 'Share your campaign'}
         </DialogTitle>
         <DialogDescription>
-          Made for your story. A QR code brings people back to your collection page.
+          Share the image or copy the link. The QR code opens your feedback page.
         </DialogDescription>
         <div className="grid min-w-0 gap-6 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)]">
           <div className="min-w-0">
@@ -131,7 +130,7 @@ export function ShareDialog({
                 role="status"
                 className="bg-primary grid min-h-40 place-items-center border-2 border-black p-6 text-center"
               >
-                {error ? 'Adjust the text to create your card.' : 'Making your image…'}
+                {error ? 'The image could not be created.' : 'Making your image…'}
               </div>
             )}
           </div>
@@ -154,7 +153,7 @@ export function ShareDialog({
             </div>
             <div>
               <label htmlFor="share-collection-link" className="font-head mb-2 block text-sm">
-                Collection link
+                Feedback link
               </label>
               <Input
                 ref={linkInput}
@@ -183,18 +182,16 @@ export function ShareDialog({
                   WhatsApp
                 </a>
               </div>
-              <p className="mt-2 text-xs">
-                To include your card, attach the downloaded image in the composer.
-              </p>
+              <p className="mt-2 text-xs">You can attach the downloaded image to your post.</p>
             </div>
             <p className="text-sm">
               For Instagram or TikTok: share the image through your phone’s share sheet, or save it
-              and add it to your story. Add the copied collection link as a link sticker where
+              and add it to your story. Add the copied feedback link as a link sticker where
               available. Links inside an image are not tappable.
             </p>
             {feedback && (
               <p className="text-sm">
-                Only this feedback is included. Review the preview before sharing it publicly.
+                Long responses are shortened to fit the image. Your saved feedback stays unchanged.
               </p>
             )}
             {isLocal && (
@@ -203,19 +200,6 @@ export function ShareDialog({
                 when sharing with others.
               </p>
             )}
-            <details>
-              <summary className="cursor-pointer text-sm underline">Edit image text</summary>
-              <label htmlFor="share-image-text" className="mt-3 mb-2 block text-sm">
-                Text on image
-              </label>
-              <Textarea
-                id="share-image-text"
-                value={text}
-                onChange={(event) => setText(event.target.value)}
-                className="min-h-28 w-full bg-white"
-              />
-              <p className="mt-2 text-xs">Changes affect this image only.</p>
-            </details>
             {error && (
               <p role="alert" className="text-sm font-semibold">
                 {error}

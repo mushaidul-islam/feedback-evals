@@ -81,7 +81,7 @@ export default function CampaignDetailPage() {
             <div className="mt-6 flex flex-wrap gap-4">
               <Button onClick={() => setShare('campaign')}>Share campaign</Button>
               <Link href={`/f/c/${campaign.id}`} className={buttonVariants({ variant: 'outline' })}>
-                Open collection page →
+                Open feedback page →
               </Link>
             </div>
           </header>
@@ -105,13 +105,10 @@ export default function CampaignDetailPage() {
               {feedback.length === 0 && (
                 <Card className="bg-white">
                   <CardContent className="py-8">
-                    <p className="font-head text-2xl">The floor is open.</p>
+                    <p className="font-head text-2xl">No feedback yet.</p>
                     <p className="mt-3 text-base">
-                      No feedback yet. Share your campaign to get the conversation started.
+                      Share your link when you’re ready for people to respond.
                     </p>
-                    <Button className="mt-6" onClick={() => setShare('campaign')}>
-                      Create a share card
-                    </Button>
                   </CardContent>
                 </Card>
               )}

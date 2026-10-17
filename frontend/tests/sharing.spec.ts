@@ -20,7 +20,11 @@ for (const width of [1440, 390, 320]) {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.setViewportSize({ width, height: 900 });
+    const campaignResponse = page.waitForResponse((response) =>
+      response.url().endsWith(`/api/campaign/${campaignID}`),
+    );
     await page.goto(`/c/${campaignID}`);
+    const campaign = await (await campaignResponse).json();
     await expect(page.getByRole('heading', { name: 'Feedback', exact: true })).toBeVisible();
     const preview = page.getByRole('region', { name: 'Campaign content' });
     if (width >= 1024) {
@@ -40,7 +44,7 @@ for (const width of [1440, 390, 320]) {
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('img', { name: 'Share card preview' })).toBeVisible();
-    await expect(dialog.getByLabel('Collection link', { exact: true })).toHaveValue(
+    await expect(dialog.getByLabel('Feedback link', { exact: true })).toHaveValue(
       `${baseURL}/f/c/${campaignID}`,
     );
     const downloadEvent = page.waitForEvent('download');
@@ -61,11 +65,23 @@ for (const width of [1440, 390, 320]) {
         canvas.height = 960;
         const context = canvas.getContext('2d')!;
         context.drawImage(image, 0, 0, 540, 960);
-        return Array.from(context.getImageData(0, 0, 540, 960).data);
+        const thumbnail = context.getImageData(52, 615, 90, 50).data;
+        const colors = new Set<string>();
+        for (let offset = 0; offset < thumbnail.length; offset += 8) {
+          colors.add(Array.from(thumbnail.slice(offset, offset + 3)).join(','));
+        }
+        return {
+          qr: Array.from(context.getImageData(30, 690, 180, 180).data),
+          thumbnailColors: colors.size,
+        };
       }, png.toString('base64'));
-      expect(jsQR(new Uint8ClampedArray(pixels), 540, 960)?.data).toBe(
+      expect(jsQR(new Uint8ClampedArray(pixels.qr), 180, 180)?.data).toBe(
         `${baseURL}/f/c/${campaignID}`,
       );
+      if (campaign.content?.provider === 'YouTube') {
+        // A real thumbnail has varied pixels; the old text-only card is flat here.
+        expect(pixels.thumbnailColors).toBeGreaterThan(100);
+      }
     }
     await download.saveAs(test.info().outputPath('campaign-card.png'));
     await expect
@@ -78,20 +94,40 @@ for (const width of [1440, 390, 320]) {
   });
 }
 
+test('sharing still exports an image when the content thumbnail is blocked', async ({ page }) => {
+  // Fault injection only: the app and API run normally, but image loading fails.
+  await page.route('**/_next/image?*', (route) => route.abort('failed'));
+  await page.goto(`/c/${campaignID}`);
+  await page.getByRole('button', { name: 'Share campaign', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('img', { name: 'Share card preview' })).toBeVisible();
+  const downloadEvent = page.waitForEvent('download');
+  await dialog.getByRole('link', { name: 'Download image', exact: true }).click();
+  const download = await downloadEvent;
+  const png = await readFile((await download.path())!);
+  expect(png.subarray(1, 4).toString()).toBe('PNG');
+  await expect(dialog.getByRole('alert')).toHaveCount(0);
+});
+
 test('saved feedback has its own downloadable card', async ({ page }) => {
   await page.goto(`/c/${campaignID}`);
   await page.getByRole('button', { name: 'Share feedback', exact: true }).first().click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('heading', { name: 'Share this feedback' })).toBeVisible();
   await expect(dialog.getByRole('img', { name: 'Share card preview' })).toBeVisible();
+  await expect(dialog.getByRole('alert')).toHaveCount(0);
+  const response = await page.request.get(`/api/feedback?campaign_id=${campaignID}`);
+  const before = await response.json();
   const downloadEvent = page.waitForEvent('download');
   await dialog.getByRole('link', { name: 'Download image', exact: true }).click();
   const download = await downloadEvent;
   expect(download.suggestedFilename()).toMatch(/feedback.*\.png$/);
+  const after = await page.request.get(`/api/feedback?campaign_id=${campaignID}`);
+  expect(await after.json()).toEqual(before);
   await download.saveAs(test.info().outputPath('feedback-card.png'));
 });
 
-test('copy link uses the public URL and image edits do not alter saved feedback', async ({
+test('copy link uses the public URL and image text cannot be edited', async ({
   page,
   context,
 }) => {
@@ -103,18 +139,8 @@ test('copy link uses the public URL and image edits do not alter saved feedback'
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
     `${baseURL}/f/c/${campaignID}`,
   );
-  await dialog.getByText('Edit image text', { exact: true }).click();
-  const text = dialog.getByLabel('Text on image', { exact: true });
-  const original = await text.inputValue();
-  await text.fill('');
-  await expect(dialog.getByRole('alert')).toHaveText('Add some text for the image.');
-  await expect(dialog.getByRole('link', { name: 'Download image' })).toHaveCount(0);
-  await text.fill('A shorter quote for my story.');
-  await expect(dialog.getByRole('img', { name: 'Share card preview' })).toBeVisible();
-  const response = await page.request.get(`/api/feedback?campaign_id=${campaignID}`);
-  expect(response.ok()).toBe(true);
-  const saved = await response.json();
-  expect(saved.some((item: { text: string }) => item.text === original)).toBe(true);
+  await expect(dialog.getByText('Edit image text', { exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole('textbox', { name: 'Text on image' })).toHaveCount(0);
 });
 
 for (const width of [1440, 390, 320]) {
@@ -129,7 +155,7 @@ for (const width of [1440, 390, 320]) {
       true,
     );
     await page.goto('/login');
-    await expect(page.getByRole('heading', { name: /Honest words/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Hear what people think/ })).toBeVisible();
     await expect(page.getByRole('link', { name: /Sign in with Google/ })).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
