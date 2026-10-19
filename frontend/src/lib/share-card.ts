@@ -1,7 +1,4 @@
-import { getImageProps } from 'next/image';
 import QRCode from 'qrcode';
-
-import type { CampaignContent } from './api-types';
 
 // All rendering happens locally. Private feedback is never sent to an image service.
 export async function createShareCard(
@@ -9,28 +6,9 @@ export async function createShareCard(
   text: string,
   url: string,
   feedback: boolean,
-  content?: CampaignContent,
+  stamp?: Blob | null,
 ): Promise<Blob> {
   await document.fonts.ready;
-  let thumbnail: ImageBitmap | null = null;
-  const videoID =
-    content?.provider === 'YouTube'
-      ? content.embed_url?.match(/^https:\/\/www\.youtube\.com\/embed\/([\w-]{11})(?:\?|$)/)?.[1]
-      : undefined;
-  if (videoID) {
-    try {
-      const { props } = getImageProps({
-        src: `https://i.ytimg.com/vi/${videoID}/hqdefault.jpg`,
-        alt: '',
-        width: 320,
-        height: 180,
-      });
-      const response = await fetch(props.src, { signal: AbortSignal.timeout(5000) });
-      if (response.ok) thumbnail = await createImageBitmap(await response.blob());
-    } catch {
-      // A missing or blocked public thumbnail must not prevent exporting feedback.
-    }
-  }
   const canvas = document.createElement('canvas');
   canvas.width = 1080;
   canvas.height = 1920;
@@ -114,51 +92,72 @@ export async function createShareCard(
   } else {
     fitText('You can reply anonymously.', 84, 410, 910, 60, 34, bodyFont);
   }
-  box(
-    80,
-    feedback ? 640 : 540,
-    920,
-    (feedback ? 660 : 760) - (content ? 140 : 0),
-    feedback ? '#fff' : '#ffdc58',
-  );
+  box(80, feedback ? 640 : 540, 920, feedback ? 660 : 760, feedback ? '#fff' : '#ffdc58');
   fitText(
     text,
     130,
     feedback ? 695 : 600,
     820,
-    (feedback ? 550 : 640) - (content ? 140 : 0),
+    stamp ? (feedback ? 255 : 350) : feedback ? 550 : 640,
     feedback ? 62 : 84,
     feedback ? bodyFont : displayFont,
     true,
   );
-  if (content) {
-    box(80, 1200, 920, 160, '#fff');
-    if (thumbnail) {
-      const cropHeight = Math.min(thumbnail.height, (thumbnail.width * 9) / 16);
+  if (stamp) {
+    const image = await createImageBitmap(stamp);
+    try {
+      ctx.save();
+      ctx.translate(825, 1190);
+      ctx.rotate((-8 * Math.PI) / 180);
+      ctx.fillStyle = '#000';
+      ctx.fillRect(-150, -185, 320, 390);
+      // Clip edge holes out of the stamp, without erasing the card underneath.
+      ctx.beginPath();
+      ctx.rect(-160, -195, 320, 390);
+      ctx.clip();
+      const edge = new Path2D();
+      edge.rect(-160, -195, 320, 390);
+      for (let x = -149; x < 160; x += 22) {
+        for (const y of [-195, 195]) {
+          edge.moveTo(x + 6, y);
+          edge.arc(x, y, 6, 0, Math.PI * 2);
+          edge.closePath();
+        }
+      }
+      for (let y = -184; y < 195; y += 22) {
+        for (const x of [-160, 160]) {
+          edge.moveTo(x + 6, y);
+          edge.arc(x, y, 6, 0, Math.PI * 2);
+          edge.closePath();
+        }
+      }
+      ctx.clip(edge, 'evenodd');
+      ctx.fillStyle = '#fff7e8';
+      ctx.fillRect(-160, -195, 320, 390);
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 5;
+      ctx.stroke(edge);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(-140, -175, 280, 350);
+      // Center-crop older landscape stamps as well as new portrait uploads.
+      const width = Math.min(image.width, (image.height * 4) / 5);
+      const height = (width * 5) / 4;
       ctx.drawImage(
-        thumbnail,
-        0,
-        (thumbnail.height - cropHeight) / 2,
-        thumbnail.width,
-        cropHeight,
-        100,
-        1220,
-        210,
-        118,
+        image,
+        (image.width - width) / 2,
+        (image.height - height) / 2,
+        width,
+        height,
+        -140,
+        -175,
+        280,
+        350,
       );
-      thumbnail.close();
+      ctx.strokeRect(-140, -175, 280, 350);
+      ctx.restore();
+    } finally {
+      image.close();
     }
-    const left = thumbnail ? 340 : 110;
-    fitText(
-      `Linked ${content.provider === 'YouTube' ? 'video' : 'post'} on ${content.provider}`,
-      left,
-      1230,
-      970 - left,
-      50,
-      30,
-      displayFont,
-    );
-    fitText(new URL(content.url).hostname, left, 1290, 970 - left, 40, 24, bodyFont);
   }
   const qr = document.createElement('canvas');
   await QRCode.toCanvas(qr, url, { width: 300, margin: 4, errorCorrectionLevel: 'M' });

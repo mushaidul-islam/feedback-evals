@@ -32,7 +32,7 @@ type campaignResponse struct {
 }
 
 func campaignView(c models.Campaign) campaignResponse {
-	content, _ := services.ParseCampaignContent(c.ContentURL)
+	content, _ := services.ParseCampaignContent(c.ContentURL, c.ContentType)
 	return campaignResponse{ID: c.ID, Name: c.Name, CreatedAt: c.CreatedAt, ContentURL: c.ContentURL, Content: content}
 }
 
@@ -47,15 +47,16 @@ func campaignID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 
 func (h *CampaignHandler) Create(w http.ResponseWriter, r *http.Request) {
 	input, err := utils.Decode[struct {
-		Name       string `json:"name"`
-		ContentURL string `json:"content_url"`
+		Name        string `json:"name"`
+		ContentURL  string `json:"content_url"`
+		ContentType string `json:"content_type"`
 	}](r)
 	if err != nil || strings.TrimSpace(input.Name) == "" {
 		utils.Error(w, r, http.StatusBadRequest, utils.CodeInvalidArgument, "Campaign name is required.")
 		return
 	}
 	userID, _ := middleware.UserID(r.Context())
-	c, err := h.service.CreateCampaign(r.Context(), services.CreateCampaignInput{UserID: userID, Name: strings.TrimSpace(input.Name), ContentURL: input.ContentURL})
+	c, err := h.service.CreateCampaign(r.Context(), services.CreateCampaignInput{UserID: userID, Name: strings.TrimSpace(input.Name), ContentURL: input.ContentURL, ContentType: input.ContentType})
 	if errors.Is(err, services.ErrInvalidContentURL) {
 		utils.Error(w, r, http.StatusBadRequest, utils.CodeInvalidArgument, err.Error())
 		return

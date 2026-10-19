@@ -152,6 +152,37 @@ func TestCampaignFeedbackFlow(t *testing.T) {
 	if got := call("POST", "/api/v1/campaign/", owner, `{"name":"Invalid link","content_url":"javascript:alert(1)"}`).Code; got != http.StatusBadRequest {
 		t.Fatalf("invalid campaign content: %d, want 400", got)
 	}
+	for _, kind := range []string{"image", "video", "embed"} {
+		// No file extension: the explicitly selected type must survive a database read.
+		createdMedia := call("POST", "/api/v1/campaign/", owner, `{"name":"Media campaign","content_url":"https://media.example.com/asset?id=123","content_type":"`+kind+`"}`)
+		if createdMedia.Code != http.StatusCreated {
+			t.Fatalf("create %s: %d %s", kind, createdMedia.Code, createdMedia.Body.String())
+		}
+		var media struct {
+			ID uuid.UUID `json:"id"`
+		}
+		if err := json.Unmarshal(createdMedia.Body.Bytes(), &media); err != nil {
+			t.Fatal(err)
+		}
+		defer db.Exec("DELETE FROM campaigns WHERE id = ?", media.ID)
+		for _, suffix := range []string{"", "/public"} {
+			read := call("GET", "/api/v1/campaign/"+media.ID.String()+suffix, owner, "")
+			var response struct {
+				Content struct {
+					Type string `json:"type"`
+				} `json:"content"`
+			}
+			if err := json.Unmarshal(read.Body.Bytes(), &response); err != nil {
+				t.Fatal(err)
+			}
+			if read.Code != http.StatusOK || response.Content.Type != kind {
+				t.Fatalf("read %s%s: %d %s", kind, suffix, read.Code, read.Body.String())
+			}
+		}
+	}
+	if got := call("POST", "/api/v1/campaign/", owner, `{"name":"Invalid type","content_url":"https://example.com","content_type":"html"}`).Code; got != http.StatusBadRequest {
+		t.Fatalf("unknown content type: %d, want 400", got)
+	}
 	created := call("POST", "/api/v1/campaign/", owner, `{"name":"Campaign A","content_url":"https://youtu.be/dQw4w9WgXcQ"}`)
 	if created.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", created.Code, created.Body.String())

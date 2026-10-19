@@ -1,5 +1,16 @@
 export type CampaignContent = {
-  provider: 'YouTube' | 'X' | 'TikTok' | 'LinkedIn' | 'Facebook' | 'Instagram';
+  type: 'image' | 'video' | 'embed';
+  provider:
+    | 'YouTube'
+    | 'X'
+    | 'TikTok'
+    | 'LinkedIn'
+    | 'Facebook'
+    | 'Instagram'
+    | 'Google Drive'
+    | 'Website'
+    | 'Image'
+    | 'Video';
   url: string;
   embed_url?: string;
 };

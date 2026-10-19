@@ -1,9 +1,34 @@
 package services
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
+
+func TestCampaignContentMediaAndWebsites(t *testing.T) {
+	for _, tc := range []struct{ url, kind, provider, embed string }{
+		{"https://images.example.com/photo.JPG?width=800", "image", "Image", ""},
+		{"https://media.example.com/clip.webm", "video", "Video", ""},
+		{"https://blog.example.com/article#section", "embed", "Website", "https://blog.example.com/article#section"},
+		{"https://drive.google.com/file/d/abc_123-xyz/view?usp=sharing&resourcekey=key123", "embed", "Google Drive", "https://drive.google.com/file/d/abc_123-xyz/preview?resourcekey=key123"},
+		{"https://drive.google.com/open?id=abc_123-xyz", "embed", "Google Drive", "https://drive.google.com/file/d/abc_123-xyz/preview"},
+		{"https://youtube.com.evil.example/article", "embed", "Website", "https://youtube.com.evil.example/article"},
+	} {
+		t.Run(tc.url, func(t *testing.T) {
+			content, err := ParseCampaignContent(tc.url, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			data, _ := json.Marshal(content)
+			var body map[string]any
+			_ = json.Unmarshal(data, &body)
+			if body["type"] != tc.kind || content.Provider != tc.provider || content.EmbedURL != tc.embed {
+				t.Fatalf("content = %s, want %s / %s / %s", data, tc.kind, tc.provider, tc.embed)
+			}
+		})
+	}
+}
 
 func TestCampaignContent(t *testing.T) {
 	cases := []struct {
@@ -26,7 +51,7 @@ func TestCampaignContent(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			content, err := ParseCampaignContent(tc.input)
+			content, err := ParseCampaignContent(tc.input, "")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -35,7 +60,7 @@ func TestCampaignContent(t *testing.T) {
 			}
 		})
 	}
-	if content, err := ParseCampaignContent(" \n "); err != nil || content != nil {
+	if content, err := ParseCampaignContent(" \n ", ""); err != nil || content != nil {
 		t.Fatalf("optional empty link = %+v, %v", content, err)
 	}
 }
@@ -43,19 +68,31 @@ func TestCampaignContent(t *testing.T) {
 func TestCampaignContentRejectsInvalidLinks(t *testing.T) {
 	for _, raw := range []string{
 		"javascript:alert(1)", "http://youtube.com/watch?v=dQw4w9WgXcQ",
-		"https://youtube.com.evil.example/watch?v=dQw4w9WgXcQ",
 		"https://youtube.com@evil.example/watch?v=dQw4w9WgXcQ",
 		"https://user:password@youtube.com/watch?v=dQw4w9WgXcQ",
 		"https://youtube.com:9000/watch?v=dQw4w9WgXcQ",
 		"https://youtube.com/watch?v=invalid", "https://youtube.com/",
 		"https://x.com/example", "https://instagram.com/example",
 		"https://linkedin.com/in/example", "https://facebook.com/",
-		"https://example.com/video", "https://youtu.be/" + strings.Repeat("a", 2100),
+		"https://localhost/test", "https://127.0.0.1/test", "https://192.168.1.1/test", "https://169.254.169.254/test",
+		"https:///missing-host", "https://drive.google.com/file/d/invalid!/view", "https://youtu.be/" + strings.Repeat("a", 2100),
 	} {
 		t.Run(raw[:min(len(raw), 80)], func(t *testing.T) {
-			if _, err := ParseCampaignContent(raw); err == nil {
+			if _, err := ParseCampaignContent(raw, ""); err == nil {
 				t.Fatal("accepted invalid content link")
 			}
 		})
+	}
+}
+
+func TestCampaignContentExplicitType(t *testing.T) {
+	for _, kind := range []string{"image", "video", "embed"} {
+		content, err := ParseCampaignContent("https://media.example.com/asset?id=123", kind)
+		if err != nil || content.Type != kind {
+			t.Fatalf("explicit %s: %+v, %v", kind, content, err)
+		}
+	}
+	if _, err := ParseCampaignContent("https://example.com", "html"); err == nil {
+		t.Fatal("accepted unknown content type")
 	}
 }

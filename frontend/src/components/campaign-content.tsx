@@ -3,6 +3,7 @@
 import Script from 'next/script';
 import { useRef, useState } from 'react';
 
+import { ContentIcon } from '@/components/content-icon';
 import type { CampaignContent as Content } from '@/lib/api-types';
 
 type EmbedWindow = Window & {
@@ -16,7 +17,34 @@ export function CampaignContent({ content }: { content: Content }) {
 
   return (
     <section aria-label="Campaign content" className="mt-5 min-w-0 lg:mt-0">
-      {content.provider === 'X' ? (
+      <div className="font-head mb-3 flex items-center gap-2 text-sm">
+        <ContentIcon content={content} />
+        <span>{content.provider}</span>
+      </div>
+      {content.type === 'image' && !failed ? (
+        // External images load in the browser, never through a server image proxy.
+        // oxlint-disable-next-line nextjs/no-img-element
+        <img
+          src={content.url}
+          alt="Campaign image"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setFailed(true)}
+          className="max-h-[760px] w-full border-2 border-black bg-white object-contain"
+        />
+      ) : content.type === 'video' && !failed ? (
+        <video
+          src={content.url}
+          aria-label="Campaign video"
+          controls
+          playsInline
+          preload="metadata"
+          onError={() => setFailed(true)}
+          className="max-h-[760px] w-full border-2 border-black bg-black"
+        >
+          Your browser cannot play this video. Use the original link below.
+        </video>
+      ) : content.provider === 'X' && !failed ? (
         <div ref={container}>
           <blockquote className="twitter-tweet" data-width="550" data-dnt="true">
             <a href={content.url}>View post on X</a>
@@ -55,7 +83,14 @@ export function CampaignContent({ content }: { content: Content }) {
           loading="lazy"
           allow="encrypted-media; fullscreen; picture-in-picture"
           allowFullScreen
-          referrerPolicy="strict-origin-when-cross-origin"
+          sandbox={
+            content.provider === 'Website'
+              ? 'allow-scripts'
+              : 'allow-scripts allow-same-origin allow-presentation'
+          }
+          referrerPolicy={
+            content.provider === 'Website' ? 'no-referrer' : 'strict-origin-when-cross-origin'
+          }
           onError={() => setFailed(true)}
           className={`w-full border-2 border-black bg-white ${
             content.provider === 'YouTube'
@@ -69,11 +104,17 @@ export function CampaignContent({ content }: { content: Content }) {
         />
       ) : null}
       <p className="mt-3 text-sm">
-        {failed || (!content.embed_url && content.provider !== 'X')
+        {failed ||
+        (content.type !== 'image' &&
+          content.type !== 'video' &&
+          !content.embed_url &&
+          content.provider !== 'X')
           ? 'Preview unavailable. '
           : 'If the preview does not load, '}
         <a href={content.url} target="_blank" rel="noopener noreferrer" className="underline">
-          Open original on {content.provider}
+          {content.provider === 'Website' || content.type === 'image' || content.type === 'video'
+            ? 'Open original'
+            : `Open original on ${content.provider}`}
         </a>
         .
       </p>

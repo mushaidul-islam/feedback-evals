@@ -11,12 +11,13 @@
     "format:check": "oxfmt --check src package.json next.config.ts postcss.config.mjs",
     "typecheck": "next typegen && tsc --noEmit",
     "check": "bun run format:check && bun run lint && bun run typecheck",
-    "test:ui": "playwright test tests/campaign.spec.ts tests/collection.spec.ts tests/sharing.spec.ts"
+    "test:ui": "playwright test tests/campaign.spec.ts tests/collection.spec.ts tests/sharing.spec.ts tests/media.spec.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "lucide-react": "^1.59.0",
     "next": "16.3.1",
     "qrcode": "^1.5.4",
     "react": "19.2.8",

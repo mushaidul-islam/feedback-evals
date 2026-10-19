@@ -6,6 +6,7 @@ import { useState, type FormEvent } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import type { Campaign } from '@/lib/api-types';
 
 export function CreateForm() {
@@ -17,6 +18,7 @@ export function CreateForm() {
     event.preventDefault();
     const name = String(new FormData(event.currentTarget).get('name') ?? '').trim();
     const contentURL = String(new FormData(event.currentTarget).get('content_url') ?? '').trim();
+    const contentType = String(new FormData(event.currentTarget).get('content_type') ?? 'embed');
     if (!name) {
       setMessage('Enter a campaign name.');
       return;
@@ -27,12 +29,12 @@ export function CreateForm() {
       const response = await fetch('/api/campaign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, content_url: contentURL }),
+        body: JSON.stringify({ name, content_url: contentURL, content_type: contentType }),
       });
       if (!response.ok) {
         setMessage(
           response.status === 400
-            ? 'Enter a campaign name and an HTTPS post or video link from a supported platform, or leave the link empty.'
+            ? 'Enter a campaign name and a public HTTPS content link, or leave the link empty.'
             : 'Could not create the campaign. Please try again.',
         );
         setPending(false);
@@ -78,6 +80,21 @@ export function CreateForm() {
         For example, “How was my dancing?”
       </p>
       <div>
+        <label className="font-head mb-2 block text-sm uppercase" htmlFor="campaign-content-type">
+          Content type
+        </label>
+        <NativeSelect
+          id="campaign-content-type"
+          name="content_type"
+          defaultValue="embed"
+          className="mb-4 w-full"
+        >
+          <NativeSelectOption value="embed">
+            Embed — website, social post, or Google Drive
+          </NativeSelectOption>
+          <NativeSelectOption value="image">Image — direct image link</NativeSelectOption>
+          <NativeSelectOption value="video">Video — direct video link</NativeSelectOption>
+        </NativeSelect>
         <label className="font-head mb-2 block text-sm uppercase" htmlFor="campaign-content">
           Content link (optional)
         </label>
@@ -91,8 +108,8 @@ export function CreateForm() {
           className="h-12 bg-white text-base"
         />
         <p id="campaign-content-help" className="mt-2 text-sm">
-          Link a public YouTube video, X post, TikTok, LinkedIn post, Facebook post, or Instagram
-          post.
+          Choose image or video for a direct media link. Use embed for a website, social post, or
+          public Google Drive file. Some sites block previews; the original link stays available.
         </p>
       </div>
       {message && (

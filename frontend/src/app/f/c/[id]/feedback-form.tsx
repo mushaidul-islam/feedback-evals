@@ -40,12 +40,24 @@ export function FeedbackForm({ campaignId }: { campaignId: string }) {
         aria-label="Feedback"
         name="text"
         required
+        onKeyDown={(event) => {
+          if (
+            event.key === 'Enter' &&
+            event.metaKey &&
+            !event.nativeEvent.isComposing &&
+            !event.repeat
+          ) {
+            event.preventDefault();
+            event.currentTarget.form?.requestSubmit();
+          }
+        }}
         aria-describedby={message ? 'feedback-error' : undefined}
         className="border-border h-44 resize-none border-2 px-4 py-4 pr-18 font-sans text-xl leading-tight font-semibold sm:h-52 sm:px-5 sm:py-5 sm:pr-22 sm:text-2xl"
         placeholder=""
       />
       <Button
         aria-label="Send feedback"
+        aria-keyshortcuts="Meta+Enter"
         className="absolute right-6 bottom-6 size-14 p-0 text-4xl leading-none sm:right-8 sm:bottom-8 sm:size-16"
         size="icon-lg"
         type="submit"

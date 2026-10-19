@@ -1,12 +1,16 @@
 'use client';
 
+import { Copy, Download, Share2 } from 'lucide-react';
+import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 
+import { ShareStamp } from '@/components/share-stamp';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import type { Campaign, Feedback } from '@/lib/api-types';
 import { createShareCard } from '@/lib/share-card';
+import { shareCardStore, type StoredShareCard } from '@/lib/share-card-store';
 
 export function ShareDialog({
   campaign,
@@ -22,6 +26,12 @@ export function ShareDialog({
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
   const [sharing, setSharing] = useState(false);
+  const [stamp, setStamp] = useState<Blob | null>(null);
+  const [storageReady, setStorageReady] = useState(false);
+  const [storageStatus, setStorageStatus] = useState('');
+  const [savingStamp, setSavingStamp] = useState(false);
+  const cached = useRef<StoredShareCard | undefined>(undefined);
+  const generation = useRef(0);
   const linkInput = useRef<HTMLInputElement>(null);
   const url = `${window.location.origin}/f/c/${encodeURIComponent(campaign.id)}`;
   const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
@@ -30,9 +40,36 @@ export function ShareDialog({
     : `${campaign.name}\nYou can leave feedback anonymously.`;
   const xURL = `https://x.com/intent/tweet?${new URLSearchParams({ text: shareText, url })}`;
   const whatsappURL = `https://wa.me/?${new URLSearchParams({ text: `${shareText}\n${url}` })}`;
+  const storageKey = `${campaign.id}:${feedback?.id ?? 'campaign'}`;
+  // Regenerate saved cards from the previous source-panel layout, retaining uploads.
+  const signature = JSON.stringify(['postage-stamp', campaign.name, text, url]);
 
   useEffect(() => {
     let cancelled = false;
+    shareCardStore(storageKey)
+      .then((saved) => {
+        if (cancelled) return;
+        cached.current = saved;
+        setStamp(saved?.stamp ?? null);
+      })
+      .catch(() => {
+        if (!cancelled)
+          setStorageStatus(
+            'Local storage is unavailable. You can still download or share the image.',
+          );
+      })
+      .finally(() => {
+        if (!cancelled) setStorageReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (!storageReady) return;
+    let cancelled = false;
+    const revision = generation.current;
     let objectURL: string | undefined;
     setImage(null);
     setError('');
@@ -40,9 +77,14 @@ export function ShareDialog({
       setError('There is no text to share.');
       return;
     }
-    createShareCard(campaign.name, text, url, !!feedback, campaign.content)
-      .then((blob) => {
-        if (cancelled) return;
+    const saved = cached.current;
+    const reusable = saved?.signature === signature && saved.stamp === stamp;
+    (reusable
+      ? Promise.resolve(saved.card)
+      : createShareCard(campaign.name, text, url, !!feedback, stamp)
+    )
+      .then(async (blob) => {
+        if (cancelled || revision !== generation.current) return;
         objectURL = URL.createObjectURL(blob);
         const file = new File(
           [blob],
@@ -50,9 +92,24 @@ export function ShareDialog({
           { type: 'image/png' },
         );
         setImage({ url: objectURL, file });
+        if (!reusable) {
+          const value = { signature, stamp, card: blob };
+          try {
+            await shareCardStore(storageKey, value);
+            if (!cancelled && revision === generation.current) {
+              cached.current = value;
+              setStorageStatus('Image saved on this device.');
+            }
+          } catch {
+            if (!cancelled && revision === generation.current)
+              setStorageStatus(
+                'Local storage is unavailable. You can still download or share the image.',
+              );
+          }
+        } else setStorageStatus('Image saved on this device.');
       })
       .catch((cause: unknown) => {
-        if (!cancelled)
+        if (!cancelled && revision === generation.current)
           setError(
             cause instanceof Error ? cause.message : 'Could not create the image. Try again.',
           );
@@ -61,7 +118,26 @@ export function ShareDialog({
       cancelled = true;
       if (objectURL) URL.revokeObjectURL(objectURL);
     };
-  }, [campaign.id, campaign.name, campaign.content, feedback, text, url]);
+  }, [campaign.id, campaign.name, feedback, text, url, stamp, storageReady, storageKey, signature]);
+
+  async function changeStamp(next: Blob | null) {
+    if (savingStamp) return;
+    setSavingStamp(true);
+    generation.current++;
+    setImage(null);
+    setStorageStatus('Saving stamp…');
+    // Persist the choice before slow thumbnail loading or card generation.
+    // An empty signature forces regeneration if the page reloads mid-render.
+    const value = { signature: '', stamp: next, card: image?.file ?? new Blob() };
+    try {
+      await shareCardStore(storageKey, value);
+    } catch {
+      // Export still works when storage is blocked or full.
+    }
+    cached.current = value;
+    setStamp(next);
+    setSavingStamp(false);
+  }
 
   async function copyLink() {
     try {
@@ -118,13 +194,48 @@ export function ShareDialog({
         <div className="grid min-w-0 gap-6 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)]">
           <div className="min-w-0">
             {image ? (
-              // A local blob preview uses the exact PNG that is downloaded and shared.
-              // oxlint-disable-next-line nextjs/no-img-element
-              <img
-                src={image.url}
-                alt="Share card preview"
-                className="mx-auto max-h-[50dvh] w-auto max-w-full border-2 border-black shadow-md sm:max-h-[65dvh]"
-              />
+              <div className="relative mx-auto w-fit max-w-full">
+                {/* Render the exact local PNG without sending it to an image optimizer. */}
+                <Image
+                  src={image.url}
+                  alt="Share card preview"
+                  width={1080}
+                  height={1920}
+                  unoptimized
+                  className="mx-auto h-auto max-h-[50dvh] w-auto max-w-full border-2 border-black shadow-md sm:max-h-[65dvh]"
+                />
+                <div
+                  className="absolute top-3 right-3 flex gap-2"
+                  role="group"
+                  aria-label="Image sharing actions"
+                >
+                  <a
+                    href={image.url}
+                    download={image.file.name}
+                    aria-label="Download image"
+                    title="Download image"
+                    className={buttonVariants({
+                      size: 'icon-sm',
+                      className: 'size-9 pointer-coarse:size-11',
+                    })}
+                  >
+                    <Download aria-hidden="true" className="size-4" />
+                  </a>
+                  <Button
+                    size="icon-sm"
+                    className="size-9 pointer-coarse:size-11"
+                    disabled={sharing}
+                    aria-label={canShareImage ? 'Share image' : 'Share link'}
+                    title={canShareImage ? 'Share image' : 'Share link'}
+                    onClick={() => {
+                      if (typeof navigator.share === 'function') void share(canShareImage);
+                      else void copyLink();
+                    }}
+                  >
+                    <Share2 aria-hidden="true" className="size-4" />
+                  </Button>
+                </div>
+              </div>
             ) : (
               <div
                 role="status"
@@ -135,43 +246,44 @@ export function ShareDialog({
             )}
           </div>
           <div className="min-w-0 space-y-4">
-            <div className="flex flex-wrap gap-3">
-              {canShareImage && (
-                <Button disabled={sharing || !image} onClick={() => void share(true)}>
-                  Share image
-                </Button>
-              )}
-              {image && (
-                <a
-                  href={image.url}
-                  download={image.file.name}
-                  className={buttonVariants({ variant: canShareImage ? 'outline' : 'default' })}
-                >
-                  Download image
-                </a>
-              )}
-            </div>
+            {storageReady && (
+              <ShareStamp
+                hasStamp={!!stamp}
+                disabled={savingStamp}
+                onApply={(blob) => {
+                  void changeStamp(blob);
+                }}
+                onRemove={() => {
+                  void changeStamp(null);
+                }}
+              />
+            )}
+            <p role="status" aria-live="polite" className="text-sm">
+              {storageStatus}
+            </p>
             <div>
               <label htmlFor="share-collection-link" className="font-head mb-2 block text-sm">
                 Feedback link
               </label>
-              <Input
-                ref={linkInput}
-                id="share-collection-link"
-                value={url}
-                readOnly
-                onFocus={(event) => event.target.select()}
-                className="w-full min-w-0 bg-white"
-              />
-              <div className="mt-3 flex flex-wrap gap-3">
-                <Button variant="outline" onClick={() => void copyLink()}>
-                  Copy link
+              <div className="relative">
+                <Input
+                  ref={linkInput}
+                  id="share-collection-link"
+                  value={url}
+                  readOnly
+                  onFocus={(event) => event.target.select()}
+                  className="h-12 w-full min-w-0 bg-white pr-14"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="absolute top-1/2 right-1 size-10 -translate-y-1/2"
+                  aria-label="Copy link"
+                  title="Copy link"
+                  onClick={() => void copyLink()}
+                >
+                  <Copy aria-hidden="true" className="size-4" />
                 </Button>
-                {typeof navigator.share === 'function' && (
-                  <Button variant="outline" disabled={sharing} onClick={() => void share(false)}>
-                    Share link
-                  </Button>
-                )}
               </div>
               <p className="mt-4 text-sm">Or share the link on:</p>
               <div className="mt-2 flex flex-wrap gap-4 text-sm underline">

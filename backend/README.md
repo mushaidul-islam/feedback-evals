@@ -177,26 +177,15 @@ campaign returns 404, not 403, so ids cannot be probed to learn what exists.
 Campaigns created before sign-in existed have no owner and are no longer
 visible to anyone.
 
-Campaign creation accepts an optional `content_url` alongside `name`. The URL
-must be an HTTPS post or video link from YouTube, X, TikTok, LinkedIn,
-Facebook, or Instagram. Invalid URLs return 400. Content links are stored
-on the campaign, and individual campaign responses include a `content`
-object with the provider, original URL, and an embed URL where available.
-The public response also includes `creator_name` when the creator has a name.
-The public response excludes email, Google subject, session credentials,
-and the creator's internal user ID.
+Campaign creation accepts an optional `content_url` and `content_type` alongside `name`. The type is `image`, `video`, or `embed`. Image/video types accept public HTTPS direct media links, including URLs without file extensions. Embed supports websites, public Google Drive file links, and recognized social post/video URLs from YouTube, X, TikTok, LinkedIn, Facebook, and Instagram. If the type is omitted, common image/video extensions are recognized and other URLs use embed. Invalid types, schemes, credentials, ports, missing hosts, localhost, and literal private/local IP addresses return 400. Known social-provider links still require a recognized post format; lookalike hosts remain generic websites and never receive a provider icon.
 
-Restart the API with automatic migration enabled to add the `content_url`
-column to existing development databases. URL parsing uses a fixed list of
-provider hosts and recognized post paths. It constructs embed URLs without
-fetching remote pages or storing third-party HTML. Short TikTok share links
-have an original-link fallback rather than being resolved by the API.
-Embeds are for the person submitting feedback; the classifier still reads
-only the campaign name and submitted text.
+The URL and selected type are stored on the campaign. Individual campaign responses include a `content` object with `type`, `provider`, `url`, and `embed_url` where available. The API constructs provider URLs without fetching remote content, resolving redirects, storing HTML, or checking whether media is accessible. Website fragments and Drive resource keys are retained. Browser rendering and original-link fallbacks handle unavailable content. The classifier still receives only the campaign name and submitted feedback text.
+
+Restart with automatic migration enabled to add the `content_type` column. Its empty default preserves existing campaigns: their type is derived when read. No destructive migration or local database reset is needed. The public response includes the creator's display name/picture and excludes email, Google subject, credentials, and internal user ID. Share-image uploads and local image persistence are frontend-only and add no API endpoints.
 
 `internal/services/campaign_content_test.go` covers supported link forms and
-rejected schemes, credentials, ports, hosts, and non-post paths. The existing
-campaign integration test also covers link persistence, invalid-link
+explicit and inferred media types, Drive preview links, websites, and rejected schemes, credentials, ports, local addresses, and invalid provider paths. The existing
+campaign integration test also covers type persistence in protected/public reads, invalid types, link persistence, invalid-link
 rejection, text-only campaigns, creator names, and public response fields.
 These checks pass against a disposable local PostgreSQL database. The integration test requires
 `TEST_DATABASE_URL` pointing to a disposable PostgreSQL database.

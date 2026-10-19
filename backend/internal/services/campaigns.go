@@ -51,13 +51,14 @@ func (s *CampaignService) first(ctx context.Context, query string, args ...any) 
 }
 
 type CreateCampaignInput struct {
-	UserID     uuid.UUID
-	Name       string
-	ContentURL string
+	UserID      uuid.UUID
+	Name        string
+	ContentURL  string
+	ContentType string
 }
 
 func (s *CampaignService) CreateCampaign(ctx context.Context, input CreateCampaignInput) (models.Campaign, error) {
-	content, err := ParseCampaignContent(input.ContentURL)
+	content, err := ParseCampaignContent(input.ContentURL, input.ContentType)
 	if err != nil {
 		return models.Campaign{}, err
 	}
@@ -67,6 +68,7 @@ func (s *CampaignService) CreateCampaign(ctx context.Context, input CreateCampai
 	}
 	if content != nil {
 		campaign.ContentURL = content.URL
+		campaign.ContentType = content.Type
 	}
 
 	err = s.db.WithContext(ctx).Create(&campaign).Error
