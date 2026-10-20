@@ -1,5 +1,10 @@
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { buttonVariants } from '@/components/ui/button';
+import { API_URL } from '@/lib/api-proxy';
+import { SESSION_COOKIE } from '@/lib/auth-cookie';
 
 const ERRORS: Record<string, string> = {
   cancelled: 'Sign-in was cancelled.',
@@ -12,6 +17,15 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ error?: string | string[] }>;
 }) {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (token) {
+    const session = await fetch(`${API_URL}/api/v1/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    }).catch(() => null);
+    if (session?.ok) redirect('/c');
+  }
+
   const { error } = await searchParams;
   const message = typeof error === 'string' ? (ERRORS[error] ?? ERRORS.failed) : '';
 

@@ -11,7 +11,7 @@
     "format:check": "oxfmt --check src package.json next.config.ts postcss.config.mjs",
     "typecheck": "next typegen && tsc --noEmit",
     "check": "bun run format:check && bun run lint && bun run typecheck",
-    "test:ui": "playwright test tests/campaign.spec.ts tests/collection.spec.ts tests/sharing.spec.ts tests/media.spec.ts"
+    "test:ui": "playwright test tests/auth.spec.ts tests/campaign.spec.ts tests/collection.spec.ts tests/sharing.spec.ts tests/media.spec.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
